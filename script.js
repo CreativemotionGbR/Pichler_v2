@@ -50,6 +50,7 @@
     "summary",
     "warnings",
   ];
+  const DATE_FIELDS = new Set(["date", "saved_at", "email_received_at", "valid_from", "contract_date", "last_review"]);
   const KNOWN_CHANGE_TYPES = [
     "Neuer Dienstleister",
     "Wechsel Dienstleister",
@@ -177,7 +178,7 @@
     populateSelect("personal_data", YES_NO_UNKNOWN, "Nein");
     populateSelect("customers_affected", YES_NO_UNKNOWN, "Nein");
     populateSelect("external_parties", YES_NO_UNKNOWN, "Nein");
-    $("date").value = new Date().toISOString().slice(0, 10);
+    $("date").value = formatDateForDisplay(new Date().toISOString().slice(0, 10));
     $("source").value = "Manuelle Eingabe";
 
     if (!isLocalStorageAvailable()) {
@@ -262,23 +263,61 @@
     const data = {};
     INPUT_FIELDS.forEach((field) => {
       const element = $(field);
-      data[field] = element ? String(element.value || "").trim() : "";
+      data[field] = element ? getFieldValue(field, element.value) : "";
     });
     return data;
+  }
+
+  function getFieldValue(field, value) {
+    const text = String(value || "").trim();
+    return DATE_FIELDS.has(field) ? normalizeDateInput(text) : text;
   }
 
   function setFormData(data) {
     INPUT_FIELDS.forEach((field) => {
       const element = $(field);
       if (!element) return;
-      element.value = data[field] || "";
+      element.value = DATE_FIELDS.has(field) ? formatDateForDisplay(data[field]) : data[field] || "";
     });
+  }
+
+  function normalizeDateInput(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    const germanMatch = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(.*)$/);
+    if (germanMatch) {
+      const [, day, month, year, rest] = germanMatch;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}${rest || ""}`;
+    }
+    return text;
+  }
+
+  function formatDateForDisplay(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    if (/^\d{1,2}\.\d{1,2}\.\d{4}/.test(text)) return text;
+
+    const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
+    if (isoMatch) {
+      const [, year, month, day, hour, minute] = isoMatch;
+      return `${day}.${month}.${year}${hour && minute ? ` ${hour}:${minute}` : ""}`;
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      const date = parsed.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const hasTime = /\d{1,2}:\d{2}/.test(text);
+      return hasTime ? `${date} ${parsed.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : date;
+    }
+
+    return text;
   }
 
   function normalizeChange(change) {
     const normalized = {};
     INPUT_FIELDS.forEach((field) => {
-      normalized[field] = String(change[field] ?? "").trim();
+      const value = String(change[field] ?? "").trim();
+      normalized[field] = DATE_FIELDS.has(field) ? normalizeDateInput(value) : value;
     });
     return normalized;
   }
@@ -544,6 +583,7 @@
       const level = String(value || "").toLowerCase();
       return `<span class="table-impact impact-${level}">${escapeHtml(value || "")}</span>`;
     }
+    if (DATE_FIELDS.has(column)) return escapeHtml(formatDateForDisplay(value));
     if (Array.isArray(value)) return escapeHtml(value.join("; "));
     if (typeof value === "boolean") return value ? "Ja" : "Nein";
     return escapeHtml(value ?? "");
@@ -664,7 +704,15 @@
       const text = Array.isArray(value) ? value.join("; ") : String(value ?? "");
       return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     };
-    return [columns.join(","), ...rows.map((row) => columns.map((column) => escapeCell(row[column])).join(","))].join("\n");
+    return [columns.join(","), ...rows.map((row) => columns.map((column) => escapeCell(formatExportValue(column, row[column]))).join(","))].join("\n");
+  }
+
+  function formatExportValue(column, value) {
+    return DATE_FIELDS.has(column) ? formatDateForDisplay(value) : value;
+  }
+
+  function formatDisplayValue(column, value) {
+    return DATE_FIELDS.has(column) ? formatDateForDisplay(value) : value || "";
   }
 
   function exportJson() {
@@ -720,7 +768,7 @@
     populateSelect("personal_data", YES_NO_UNKNOWN, "Nein");
     populateSelect("customers_affected", YES_NO_UNKNOWN, "Nein");
     populateSelect("external_parties", YES_NO_UNKNOWN, "Nein");
-    $("date").value = new Date().toISOString().slice(0, 10);
+    $("date").value = formatDateForDisplay(new Date().toISOString().slice(0, 10));
     $("source").value = "Manuelle Eingabe";
     lastEvaluation = null;
     $("saveBtn").disabled = true;
@@ -766,7 +814,7 @@
   function applyEmailData(parsed, originalText) {
     $("email_sender").value = parsed.sender || $("email_sender").value;
     $("email_subject").value = parsed.subject || $("email_subject").value;
-    $("email_received_at").value = parsed.date || $("email_received_at").value;
+    $("email_received_at").value = formatDateForDisplay(parsed.date) || $("email_received_at").value;
     $("source").value = "Manuell eingefügte E-Mail";
     if (!$("description").value.trim()) $("description").value = parsed.body || originalText;
     if (!$("change_id").value.trim()) $("change_id").value = `EMAIL-${Date.now()}`;
@@ -808,7 +856,7 @@
       tom_id: $("tom_id").value.trim() || "TOM-001",
       title: $("tom_title").value.trim() || "Technisch-organisatorische Maßnahmen",
       version: $("tom_version").value.trim(),
-      valid_from: $("tom_valid_from").value,
+      valid_from: normalizeDateInput($("tom_valid_from").value),
       file_name: $("tom_file_name").value.trim(),
       file_type: $("tom_file_type").value.trim(),
       file_size: Number(String($("tom_file_size").value).replace(/[^0-9]/g, "")) || 0,
@@ -824,7 +872,7 @@
     $("tom_id").value = tom.tom_id || "TOM-001";
     $("tom_title").value = tom.title || "Technisch-organisatorische Maßnahmen";
     $("tom_version").value = tom.version || "";
-    $("tom_valid_from").value = tom.valid_from || "";
+    $("tom_valid_from").value = formatDateForDisplay(tom.valid_from);
     $("tom_file_name").value = tom.file_name || "";
     $("tom_file_type").value = tom.file_type || "";
     $("tom_file_size").value = tom.file_size ? `${tom.file_size} Byte` : "";
@@ -884,7 +932,7 @@
       customer_name: customerName,
       avv_title: String(row.avv_title || `AVV ${customerName}`).trim(),
       avv_version: String(row.avv_version || "").trim(),
-      contract_date: String(row.contract_date || "").trim(),
+      contract_date: normalizeDateInput(row.contract_date),
       status: String(row.status || "Aktiv").trim(),
       affected_systems: String(row.affected_systems || "").trim(),
       data_categories: String(row.data_categories || "").trim(),
@@ -893,7 +941,7 @@
       file_hash: String(row.file_hash || "").trim(),
       file_size: Number(row.file_size || 0) || 0,
       file_type: String(row.file_type || "").trim(),
-      last_review: String(row.last_review || "").trim(),
+      last_review: normalizeDateInput(row.last_review),
       review_status: String(row.review_status || "OK").trim(),
       notes: String(row.notes || "").trim(),
       avv_text: String(row.avv_text || "").trim(),
@@ -940,6 +988,7 @@
   }
 
   function formatCustomerAvvCell(column, value) {
+    if (DATE_FIELDS.has(column)) return escapeHtml(formatDateForDisplay(value));
     if (column === "status" || column === "review_status") return `<span class="status-badge ${statusClass(value)}">${escapeHtml(value || "")}</span>`;
     return escapeHtml(value || "");
   }
@@ -958,7 +1007,7 @@
     const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
     if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
     $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(item[column] || "")}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Zur Prüfung markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
+    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Zur Prüfung markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
     $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
     $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
   }
