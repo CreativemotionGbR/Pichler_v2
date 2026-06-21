@@ -375,6 +375,74 @@
     };
   }
 
+  function buildSummary(change, impact, documents) {
+    const changeType = cleanText(change.change_type || "Nicht angegeben");
+    const affectedDocuments = documents.length ? formatList(documents.map(cleanText)) : "keine Dokumente";
+    return `${describeChange(changeType)} ${explainImpact(change, impact, changeType)} Betroffene Dokumente sind ${affectedDocuments}.`;
+  }
+
+  function describeChange(changeType) {
+    const descriptions = {
+      "Neuer Dienstleister": "Es wurde ein neuer Dienstleister eingeführt.",
+      "Wechsel Dienstleister": "Es wurde ein Dienstleisterwechsel erfasst.",
+      "Neuer Subunternehmer": "Es wurde ein neuer Subunternehmer aufgenommen.",
+      "Freelancer mit Zugriff": "Es wurde ein Freelancer mit Zugriff auf relevante Systeme erfasst.",
+      "Software-Update ohne Datenbezug": "Es wurde ein Software-Update ohne erkennbaren Datenbezug erfasst.",
+      "Software-Update mit Datenbezug": "Es wurde ein Software-Update mit Datenbezug erfasst.",
+      "API-Änderung": "Es wurde eine API-Änderung erfasst.",
+      "API entfernt": "Es wurde die Entfernung einer API erfasst.",
+      "Infrastrukturänderung": "Es wurde eine Infrastrukturänderung erfasst.",
+      "Backup geändert": "Es wurde eine Änderung am Backup erfasst.",
+      "Rechte-/Rollenkonzept geändert": "Es wurde eine Änderung am Rechte- oder Rollenkonzept erfasst.",
+      "Verschlüsselung geändert": "Es wurde eine Änderung an der Verschlüsselung erfasst.",
+      "Neues System": "Es wurde ein neues System erfasst.",
+      "System wird abgeschaltet": "Es wurde die Abschaltung eines Systems erfasst.",
+      "Datenschutzvorfall / Sicherheitsereignis": "Es wurde ein Datenschutzvorfall oder Sicherheitsereignis erfasst.",
+      "Sonstiges / Unklar": "Es wurde eine sonstige oder noch unklare Änderung erfasst.",
+    };
+    return descriptions[changeType] || `Es wurde eine Änderung vom Typ '${changeType}' erfasst.`;
+  }
+
+  function explainImpact(change, impact, changeType) {
+    const reasons = [];
+    const customerCount = Number(change.number_of_customers || 0);
+    const needsDataProtectionReview = ["Neuer Dienstleister", "Wechsel Dienstleister", "Neuer Subunternehmer", "Freelancer mit Zugriff", "API-Änderung", "API entfernt", "Infrastrukturänderung", "Backup geändert", "Rechte-/Rollenkonzept geändert", "Verschlüsselung geändert", "Datenschutzvorfall / Sicherheitsereignis"].includes(changeType);
+    if (change.external_parties === "Ja" && change.personal_data === "Ja") reasons.push("personenbezogene Daten durch externe Beteiligte verarbeitet werden");
+    if (change.customers_affected === "Ja" && customerCount > 10) reasons.push("mehr als zehn Kunden betroffen sind");
+    if ([change.security_change, change.personal_data, change.customers_affected, change.external_parties].includes("Unklar")) reasons.push("einzelne Angaben noch unklar sind");
+    if (changeType === "Sonstiges / Unklar") reasons.push("der Änderungstyp noch nicht eindeutig eingeordnet ist");
+    if (!reasons.length && impact === "Low") reasons.push("keine direkten Hinweise auf personenbezogene Daten, externe Beteiligte, Kundenbetroffenheit oder Sicherheitsänderungen vorliegen");
+    if (!reasons.length) reasons.push("die erfassten Angaben diese Einstufung auslösen");
+    return `Die Änderung wurde als ${translateImpact(impact)} eingestuft, da ${formatList(reasons)}.${needsDataProtectionReview ? " Daher ist eine datenschutzrechtliche Prüfung erforderlich." : ""}`;
+  }
+
+  function translateImpact(impact) {
+    return { High: "hoch", Medium: "mittel", Low: "niedrig" }[impact] || String(impact || "").toLowerCase();
+  }
+
+  function cleanText(value) {
+    return String(value || "")
+      .replace(/Ãƒâ€ž/g, "Ä")
+      .replace(/Ãƒâ€“/g, "Ö")
+      .replace(/ÃƒÅ“/g, "Ü")
+      .replace(/ÃƒÂ¤/g, "ä")
+      .replace(/ÃƒÂ¶/g, "ö")
+      .replace(/ÃƒÂ¼/g, "ü")
+      .replace(/ÃƒÅ¸/g, "ß")
+      .replace(/Ã„/g, "Ä")
+      .replace(/Ã–/g, "Ö")
+      .replace(/Ãœ/g, "Ü")
+      .replace(/Ã¤/g, "ä")
+      .replace(/Ã¶/g, "ö")
+      .replace(/Ã¼/g, "ü")
+      .replace(/ÃŸ/g, "ß");
+  }
+
+  function formatList(items) {
+    if (items.length <= 1) return items[0] || "";
+    return `${items.slice(0, -1).join(", ")} und ${items[items.length - 1]}`;
+  }
+
   function isAvvAffected(change) {
     return AVV_CHANGE_TYPES.has(change.change_type) || (change.external_parties === "Ja" && change.personal_data === "Ja");
   }
@@ -437,7 +505,7 @@
       <div><strong>Maßnahmen:</strong>${renderChipList(result.measures)}</div>
       <div><strong>Kundeninformation erforderlich:</strong> ${result.customer_information_required ? "Ja" : "Nein"}</div>
       <div><strong>Manuelle Prüfung erforderlich:</strong> ${result.manual_review_required ? "Ja" : "Nein"}</div>
-      <div><strong>Zusammenfassung:</strong> ${escapeHtml(result.summary)}</div>
+      <div><strong>Zusammenfassung:</strong> ${escapeHtml(buildSummary(result, result.impact_level, result.affected_documents || []))}</div>
       ${renderAffectedReviewBox(result)}
       ${result.warnings.length ? `<div class="alert warning"><strong>Warnungen:</strong><br>${result.warnings.map(escapeHtml).join("<br>")}</div>` : ""}
     `;
@@ -791,7 +859,7 @@
     currentTom = { ...(currentTom || getTomFromForm()), status: highImpact ? "Prüfung offen" : "Prüfung offen" };
     persistTom();
     renderTom();
-    showMessage("tomMessage", "Aktuelle TOM wurde als prüfpflichtig markiert.", "warning");
+    showMessage("tomMessage", "Aktuelle TOM wurde zur Prüfung markiert.", "warning");
   }
 
   function deleteTom() {
@@ -890,7 +958,7 @@
     const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
     if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
     $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(item[column] || "")}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
+    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(item[column] || "")}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Zur Prüfung markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
     $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
     $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
   }
@@ -916,9 +984,9 @@
     const parts = [];
     if (affected.includes("AVV")) {
       const relevant = customerAvvs.filter((item) => ["Aktiv", "Prüfung offen"].includes(item.status));
-      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs als prüfpflichtig markieren</button></div>`);
+      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs zur Prüfung markieren</button></div>`);
     }
-    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM als prüfpflichtig markieren</button></div>`);
+    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM zur Prüfung markieren</button></div>`);
     return parts.length ? `<div class="review-actions">${parts.join("")}</div>` : "";
   }
 
@@ -926,7 +994,7 @@
     customerAvvs = customerAvvs.map((item) => ["Aktiv", "Prüfung offen"].includes(item.status) ? { ...item, status: "Prüfung offen", review_status: highImpact ? "High Impact prüfen" : "Prüfen" } : item);
     persistCustomerAvvs();
     renderCustomerAvvs();
-    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden als prüfpflichtig markiert.");
+    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden zur Prüfung markiert.");
   }
 
   async function calculateSha256(file) {

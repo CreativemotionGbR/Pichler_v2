@@ -129,9 +129,9 @@ Der bestehende JSON-Export erzeugt `dsgvo_change_manager_backup.json` und enthä
 
 ## Verbindung zur Änderungsbewertung
 
-Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button als prüfpflichtig markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.
+Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button zur Prüfung markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.
 
-Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Aktuelle TOM prüfen“**. Die TOM kann aus der Ergebnisbox oder aus der TOM-View als prüfpflichtig markiert werden.
+Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Aktuelle TOM prüfen“**. Die TOM kann aus der Ergebnisbox oder aus der TOM-View zur Prüfung markiert werden.
 
 ## Manuelle Testfälle
 
@@ -141,7 +141,7 @@ Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Akt
    - Erwartung: TOM-Datensatz wird gespeichert.
    - Erwartung: TOM erscheint in der TOM-View.
 
-2. **TOM als prüfpflichtig markieren**
+2. **TOM zur Prüfung markieren**
    - Erwartung: TOM-Status wird `Prüfung offen`.
 
 3. **Kunden-AVV-CSV importieren**
@@ -152,11 +152,11 @@ Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Akt
 
 5. **AVV-relevante Änderung bewerten**
    - Erwartung: Ergebnis zeigt `Betroffene Kunden-AVVs prüfen`.
-   - Erwartung: aktive Kunden-AVVs können als prüfpflichtig markiert werden.
+   - Erwartung: aktive Kunden-AVVs können zur Prüfung markiert werden.
 
 6. **TOM-relevante Änderung bewerten**
    - Erwartung: Ergebnis zeigt `Aktuelle TOM prüfen`.
-   - Erwartung: TOM kann als prüfpflichtig markiert werden.
+   - Erwartung: TOM kann zur Prüfung markiert werden.
 
 7. **Lokale Daten löschen**
    - Erwartung: Änderungshistorie, TOM-Daten und Kunden-AVVs werden gelöscht.
