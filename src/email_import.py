@@ -56,7 +56,7 @@ def parse_email_message(message: EmailMessage, folder: str = "INBOX") -> dict:
 
 
 def email_to_draft_change(email_data: dict) -> dict:
-    """Erzeugt einen prüfpflichtigen Änderungseintrag aus E-Mail-Dummy-Daten."""
+    """Erzeugt einen Änderungseintrag zur Prüfung aus E-Mail-Dummy-Daten."""
     subject_body = f"{email_data.get('email_subject', '')} {email_data.get('description', '')}".lower()
     change_type = "Sonstiges / Unklar"
     if "dienstleister" in subject_body:
