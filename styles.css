@@ -475,3 +475,89 @@ footer {
 @media (max-width: 1050px) {
   .summary-grid, .tom-layout, .toolbar { grid-template-columns: 1fr; }
 }
+
+.tom-current-display {
+  display: grid;
+  gap: 1rem;
+  text-align: left;
+}
+
+.tom-current-display.empty-state {
+  text-align: center;
+}
+
+.tom-meta-list {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+}
+
+.tom-full-text-preview {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.tom-sections-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.tom-section-card {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+.tom-section-card h4,
+.tom-section-card p {
+  margin: 0;
+}
+
+.tom-section-card p {
+  margin-top: 0.5rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.small-button {
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.tom-text-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.tom-full-text {
+  white-space: pre-wrap;
+}
+
+#tomEditTextarea {
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+}
+
+.tom-full-text {
+  text-align: left;
+}
+
+.tom-edit-textarea {
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
