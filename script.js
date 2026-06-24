@@ -907,19 +907,64 @@
     $("email_sender").value = parsed.sender || $("email_sender").value;
     $("email_subject").value = parsed.subject || $("email_subject").value;
     $("email_received_at").value = formatDateForDisplay(parsed.date) || $("email_received_at").value;
+    const emailDate = extractDisplayDate($("email_received_at").value);
+    if (emailDate) $("date").value = emailDate;
     $("source").value = "Manuell eingefügte E-Mail";
     if (!$("description").value.trim()) $("description").value = parsed.body || originalText;
     if (!$("change_id").value.trim()) $("change_id").value = `EMAIL-${Date.now()}`;
     if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
     const combined = `${parsed.subject} ${parsed.body}`.toLowerCase();
-    if (combined.includes("dienstleister")) $("change_type").value = "Neuer Dienstleister";
-    if (combined.includes("subunternehmer")) $("change_type").value = "Neuer Subunternehmer";
-    if (combined.includes("kundendaten") || combined.includes("personenbezogen")) {
+    const newSubprocessor = mentionsNewSubprocessor(combined);
+    const newProvider = mentionsNewProvider(combined);
+    const securityChange = containsSecurityHint(combined);
+    if (newSubprocessor) $("change_type").value = "Neuer Subunternehmer";
+    else if (newProvider) $("change_type").value = "Neuer Dienstleister";
+    else if (securityChange) $("change_type").value = "Verschlüsselung geändert";
+    if (securityChange) $("security_change").value = "Ja";
+    if (mentionsPersonalDataContext(combined)) {
       $("personal_data").value = "Ja";
       $("customers_affected").value = "Ja";
     }
-    if (["Neuer Dienstleister", "Neuer Subunternehmer"].includes($("change_type").value)) $("external_parties").value = "Ja";
-    $("notes").value = [$("notes").value, "E-Mail-Inhalt wurde manuell übernommen; vor dem Speichern prüfen."].filter(Boolean).join("\n");
+    if (newProvider || newSubprocessor) $("external_parties").value = "Ja";
+    else if (hasExternalNegation(combined)) $("external_parties").value = "Nein";
+    appendNoteOnce("E-Mail-Inhalt wurde manuell übernommen; vor dem Speichern prüfen.");
+  }
+
+  function extractDisplayDate(value) {
+    const formatted = formatDateForDisplay(value);
+    const match = formatted.match(/^(\d{2}\.\d{2}\.\d{4})/);
+    return match ? match[1] : "";
+  }
+
+  function containsSecurityHint(text) {
+    return /\b(tom|verschlüsselung|aes[-\s]?\d+|tls|key-management|kryptografische schlüssel|backup-verschlüsselung|zugriff|rollen|rechte|protokollierung|backup|wiederherstellung|mfa|login|sicherheitsmaßnahmen|technisch-organisatorische maßnahmen)\b/i.test(text);
+  }
+
+  function mentionsNewSubprocessor(text) {
+    if (hasExternalNegation(text)) return false;
+    return /(neuer|neuen|neue|zusätzlicher|weiterer|eingeführt|beauftragt|eingesetzt).{0,80}(subunternehmer|unterauftragnehmer)/i.test(text) ||
+      /(subunternehmer|unterauftragnehmer).{0,80}(neu|hinzu|eingeführt|beauftragt|eingesetzt)/i.test(text);
+  }
+
+  function mentionsNewProvider(text) {
+    if (hasExternalNegation(text)) return false;
+    return /(neuer|neuen|neue|zusätzlicher|weiterer|eingeführt|beauftragt|eingesetzt).{0,80}(dienstleister|anbieter|provider)/i.test(text) ||
+      /(dienstleister|anbieter|provider).{0,80}(neu|hinzu|eingeführt|beauftragt|eingesetzt)/i.test(text);
+  }
+
+  function hasExternalNegation(text) {
+    return /(kein|keine|keinen).{0,80}(neuer|neuen|neue|änderung|wechsel|zusätzlicher|weiterer).{0,80}(dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider)/i.test(text) ||
+      /(dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider).{0,80}(ändert sich nicht|ändern sich nicht|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert|keine änderung)/i.test(text);
+  }
+
+  function mentionsPersonalDataContext(text) {
+    return /\b(kundendaten|kunden-avv|personenbezogen|personenbezogene daten|tom|technisch-organisatorische maßnahmen)\b/i.test(text);
+  }
+
+  function appendNoteOnce(note) {
+    const current = $("notes").value.trim();
+    if (current.includes(note)) return;
+    $("notes").value = [current, note].filter(Boolean).join("\n");
   }
 
 
