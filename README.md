@@ -25,19 +25,45 @@ index.html per Doppelklick im Browser öffnen
 
 ## TOM verwalten
 
-Der Bereich **TOM** ist in diesem Schritt bewusst minimal gehalten. Beim Laden der App prüft die Anzeige zuerst `localStorage` unter dem Key `dsgvo.tom.current`. Wenn dort keine TOM vorhanden ist, versucht die App `data/sample_tom.json` zu laden. Falls das lokale Laden per Doppelklick vom Browser blockiert wird, nutzt die App eine eingebaute Fallback-TOM aus `script.js`.
+Der Bereich **TOM** verwaltet die aktuell gültige technisch-organisatorische Maßnahme.
 
-Angezeigt werden nur:
+Unterstützte Daten:
 
+- TOM-ID
 - Titel
 - Version
-- gültig ab
+- gültig ab / Datum
+- Dateiname
+- MIME-Type
+- Dateigröße
+- SHA-256-Hash, sofern `crypto.subtle.digest` im Browser verfügbar ist
 - Status
-- Quelle
-- vollständiger TOM-Text aus `current_text`
-- Abschnitte aus `sections`, falls vorhanden
+- Kurznotiz
+- manuell eingefügter TOM-Text
 
-Es gibt in diesem TOM-Bereich keine PDF-Import-, Speicher-, Export- oder Bearbeitungsbuttons. Die Anzeige blockiert bei Fehlern nicht die restliche App.
+### TOM-PDF importieren
+
+Im Bereich **TOM** kann über **„TOM PDF importieren“** eine lokale PDF-Datei ausgewählt werden. Die App liest die Datei nur im Browser aus, zeigt Metadaten an und berechnet lokal einen Hash. Es wird keine externe PDF-Bibliothek verwendet und die Datei wird nicht an einen Server übertragen.
+
+Wichtig: Eine zuverlässige PDF-Textauswertung ist in einer reinen lokalen Browser-App ohne externe Bibliothek nicht stabil möglich. Deshalb wird die PDF als lokales Dokument registriert und zusätzlich ein Textfeld **„TOM-Text aus PDF hier einfügen“** angeboten.
+
+### TOM-Metadaten speichern
+
+Mit **„TOM-Metadaten speichern“** werden TOM-Metadaten, Hash, Notizen und manuell eingefügter Text unter dem localStorage-Key `dsgvo.tom.current` gespeichert.
+
+### TOM exportieren
+
+- **„TOM als CSV exportieren“** erzeugt `tom_export.csv` mit den Spalten:
+
+```csv
+tom_id,title,version,valid_from,file_name,file_type,file_size,hash,status,notes
+```
+
+- **„TOM als JSON exportieren“** exportiert den aktuellen TOM-Datensatz als JSON-Datei.
+
+### Hinweis zur PDF-Ablage
+
+PDF-Dateien werden aktuell nicht dauerhaft als Binärdatei in IndexedDB gespeichert. Dauerhaft gespeichert werden Metadaten, Hash und manuell eingefügter Text. Für eine dauerhafte PDF-Ablage muss die Originaldatei lokal behalten werden.
 
 ## Kunden-AVVs verwalten
 
@@ -101,20 +127,35 @@ Der bestehende JSON-Export erzeugt `dsgvo_change_manager_backup.json` und enthä
 - Versionsübersicht
 - Änderungsvorschläge / Maßnahmen
 
+## Webseiten-Screening-Prototyp
+
+Der Bereich **Webseiten-Screening** zeigt lokal gespeicherte Treffer aus `data/web_scan_results.json`.
+Der Scan läuft nicht im Browser, weil Webseiten RSS-/HTML-Abrufe durch CORS blockieren können.
+
+Lokal starten:
+
+```bash
+python src/web_feed_scanner.py
+```
+
+Danach `index.html` neu laden. Der Prototyp prüft einmalig `datenschutzticker.de` und `dr-datenschutz.de`, nutzt RSS soweit erreichbar und fällt sonst auf einfaches HTML-Screening zurück. Es gibt keine Hintergrundüberwachung, keinen Login, kein Tracking und keinen Mailversand.
+
 ## Verbindung zur Änderungsbewertung
 
-Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button als prüfpflichtig markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.
+Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button zur Prüfung markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.
 
-Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Aktuelle TOM prüfen“**. Die minimale TOM-Ansicht zeigt weiterhin die lokal geladene TOM aus `data/sample_tom.json` oder `localStorage`.
+Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Aktuelle TOM prüfen“**. Die TOM kann aus der Ergebnisbox oder aus der TOM-View zur Prüfung markiert werden.
 
 ## Manuelle Testfälle
 
-1. **App per Doppelklick öffnen**
-   - Erwartung: Die bestehende Änderungserfassung, Bewertung und Änderungshistorie bleiben nutzbar.
+1. **TOM-PDF importieren**
+   - Erwartung: Dateiname wird angezeigt.
+   - Erwartung: Hash wird berechnet, sofern der Browser SHA-256 über Web Crypto unterstützt.
+   - Erwartung: TOM-Datensatz wird gespeichert.
+   - Erwartung: TOM erscheint in der TOM-View.
 
-2. **TOM-Beispieldaten anzeigen**
-   - Erwartung: Im Bereich **„Aktuelle TOM-Version“** wird die TOM aus `data/sample_tom.json` oder die Fallback-TOM angezeigt.
-   - Erwartung: Titel, Version, gültig ab, Status, Quelle, vollständiger TOM-Text und Abschnitte sind sichtbar.
+2. **TOM zur Prüfung markieren**
+   - Erwartung: TOM-Status wird `Prüfung offen`.
 
 3. **Kunden-AVV-CSV importieren**
    - Erwartung: Kundendatensätze erscheinen in der Kunden-AVV-Tabelle.
@@ -122,17 +163,17 @@ Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Akt
 4. **Kunden-AVV als CSV exportieren**
    - Erwartung: Datei `kunden_avvs_export.csv` wird heruntergeladen.
 
-5. **Lokale Daten löschen**
-   - Erwartung: Änderungshistorie, TOM-Daten und Kunden-AVVs werden gelöscht, ohne die restliche App zu blockieren.
+5. **AVV-relevante Änderung bewerten**
+   - Erwartung: Ergebnis zeigt `Betroffene Kunden-AVVs prüfen`.
+   - Erwartung: aktive Kunden-AVVs können zur Prüfung markiert werden.
+
+6. **TOM-relevante Änderung bewerten**
+   - Erwartung: Ergebnis zeigt `Aktuelle TOM prüfen`.
+   - Erwartung: TOM kann zur Prüfung markiert werden.
+
+7. **Lokale Daten löschen**
+   - Erwartung: Änderungshistorie, TOM-Daten und Kunden-AVVs werden gelöscht.
 
 ## Rechtlicher Hinweis
 
 Alle Daten bleiben lokal. PDF-Dateien werden nicht ins Internet übertragen. Das Tool ist eine Dokumentations- und Prüfhilfe und ersetzt keine rechtliche Prüfung.
-
-## TOM-Beispieldaten
-
-Beim ersten Start lädt die App eine Beispiel-TOM aus `data/sample_tom.json`. Falls der Browser das lokale Laden blockiert, nutzt die App eine eingebaute Fallback-TOM aus `script.js`. Die geladene TOM wird unter `dsgvo.tom.current` im Browser gespeichert und anschließend im Bereich **„Aktuelle TOM-Version“** angezeigt.
-
-## Warum JSON?
-
-Die TOM wird als JSON bereitgestellt, weil JSON Metadaten, vollständigen Text und Abschnitte besser abbilden kann als CSV. In diesem Schritt dient die TOM-Ansicht ausschließlich der lokalen Anzeige.
