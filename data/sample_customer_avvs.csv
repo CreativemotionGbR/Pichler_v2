@@ -1,0 +1,16 @@
+customer_avv_id,customer_id,customer_name,avv_title,avv_version,contract_date,status,affected_systems,data_categories,processor_name,source_file,file_hash,last_review,review_status,notes,avv_text
+CAVV-001,KND-001,Musterkunde GmbH,AVV Musterkunde GmbH,1.0,2024-08-30,Aktiv,"SBS Software, Support, Wartung","Kundenstammdaten, Kommunikationsdaten, Abrechnungsdaten",Pichler Training + Support GmbH,avv_musterkunde.pdf,demo-hash-001,2026-06-24,OK,Demo-AVV für Präsentationszwecke,"AVV Musterkunde GmbH
+
+Gegenstand der Verarbeitung ist die Betreuung und Wartung von Softwaresystemen. Verarbeitet werden Kundenstammdaten, Kommunikationsdaten und Abrechnungsdaten."
+CAVV-002,KND-002,Beispielhandel AG,AVV Beispielhandel AG,2.1,2023-11-15,Prüfung offen,"Cloud-Speicher, Ticketsystem","Kontaktpersonen, Supportanfragen, Vertragsdaten",Pichler Training + Support GmbH,avv_beispielhandel.pdf,demo-hash-002,2026-06-20,Prüfen,Subunternehmerliste muss geprüft werden,"AVV Beispielhandel AG
+
+Der Kunde nutzt Support- und Cloud-Dienste. Aufgrund einer Änderung bei Subunternehmern ist eine Prüfung erforderlich."
+CAVV-003,KND-003,Demo Klinik Service GmbH,AVV Demo Klinik Service GmbH,1.4,2022-05-02,Aktualisierung nötig,"Wartung, Fernzugriff, Backup","Mitarbeiterdaten, Gesundheitsnaher Supportkontext, Logdaten",Pichler Training + Support GmbH,avv_demo_klinik.pdf,demo-hash-003,2026-06-18,High Impact prüfen,TOM und AVV wegen Fernzugriff prüfen,"AVV Demo Klinik Service GmbH
+
+Es bestehen Wartungs- und Supportleistungen mit Fernzugriff. Änderungen an Zugriffskontrollen und Protokollierung können TOM- und AVV-relevant sein."
+CAVV-004,KND-004,Test Maschinenbau KG,AVV Test Maschinenbau KG,1.2,2025-01-10,Aktiv,"ERP-Schnittstelle, Reporting","Ansprechpartnerdaten, Lieferantendaten, Projektdaten",Pichler Training + Support GmbH,avv_maschinenbau.pdf,demo-hash-004,2026-06-10,OK,Keine offenen Prüfpunkte,"AVV Test Maschinenbau KG
+
+Die Verarbeitung umfasst technische Supportdaten und projektbezogene Ansprechpartnerdaten im Rahmen der Systembetreuung."
+CAVV-005,KND-005,Schulungszentrum Süd GmbH,AVV Schulungszentrum Süd GmbH,1.0,2024-03-21,Archiviert,Ehemaliges Lernportal,"Teilnehmerdaten, Kursdaten",Pichler Training + Support GmbH,avv_schulungszentrum.pdf,demo-hash-005,2025-12-31,OK,Archivierter Demo-Datensatz,"AVV Schulungszentrum Süd GmbH
+
+Dieser Datensatz ist archiviert und dient nur als Beispiel für nicht mehr aktive Kunden-AVVs."
