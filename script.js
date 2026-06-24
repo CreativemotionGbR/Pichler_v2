@@ -3,6 +3,7 @@
 
   const STORAGE_KEY = "dsgvoChangeHistory.v2";
   const TOM_STORAGE_KEY = "dsgvo.tom.current";
+  const TOM_DISPLAY_STORAGE_KEY = "dsgvo.tom.current.v2";
   const CUSTOMER_AVVS_STORAGE_KEY = "dsgvo.customerAvvs";
   const REQUIRED_FIELDS = [
     "change_id",
@@ -1713,36 +1714,52 @@
       }
     } catch (error) {
       console.error("TOM-Anzeige konnte nicht geladen werden:", error);
-      renderTomDisplay(null);
+      const fallbackTom = normalizeTom(getFallbackTom());
+      saveTomDisplayCache(fallbackTom);
+      currentTom = fallbackTom;
+      renderTomDisplay(fallbackTom);
     }
   }
 
   async function loadTomFromJsonFile() {
-    try {
-      const response = await fetch("data/sample_tom.json", { cache: "no-store" });
-      if (!response.ok) return null;
-      return await response.json();
-    } catch (error) {
-      return null;
+    const response = await fetch("data/sample_tom.json", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("sample_tom.json konnte nicht geladen werden");
     }
+    return await response.json();
+  }
+
+  function saveTomDisplayCache(tom) {
+    if (!isLocalStorageAvailable() || !tom) return;
+    localStorage.setItem(TOM_DISPLAY_STORAGE_KEY, JSON.stringify(tom));
   }
 
   function getFallbackTom() {
     return normalizeTom({ ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" });
   }
 
-  function saveTomToLocalStorage(tom) {
-    if (!isLocalStorageAvailable() || !tom) return;
-    localStorage.setItem(TOM_STORAGE_KEY, JSON.stringify(tom));
+  function cleanupLegacyTomStorage() {
+    if (!isLocalStorageAvailable()) return;
+    try {
+      const oldTom = JSON.parse(localStorage.getItem(TOM_STORAGE_KEY) || "null");
+      if (oldTom && (!oldTom.sections || oldTom.current_text === "hallo")) {
+        localStorage.removeItem(TOM_STORAGE_KEY);
+      }
+    } catch (error) {
+      localStorage.removeItem(TOM_STORAGE_KEY);
+    }
   }
 
-  function loadTomFromLocalStorage() {
-    if (!isLocalStorageAvailable()) return null;
+  async function reloadSampleTomDisplay() {
     try {
       const raw = localStorage.getItem(TOM_STORAGE_KEY);
       return raw ? normalizeTom(JSON.parse(raw)) : null;
     } catch (error) {
-      return null;
+      console.error("Beispiel-TOM konnte nicht neu geladen werden:", error);
+      const fallbackTom = normalizeTom(getFallbackTom());
+      saveTomDisplayCache(fallbackTom);
+      currentTom = fallbackTom;
+      renderTomDisplay(fallbackTom);
     }
   }
 
