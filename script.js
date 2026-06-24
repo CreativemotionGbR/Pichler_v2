@@ -1746,10 +1746,41 @@
     }
   }
 
+  function isUsableTom(tom) {
+    return Boolean(
+      tom &&
+      tom.title &&
+      tom.version &&
+      tom.version !== "–" &&
+      tom.valid_from &&
+      tom.valid_from !== "–" &&
+      tom.status &&
+      tom.current_text &&
+      Array.isArray(tom.sections) &&
+      tom.sections.length > 0
+    );
+  }
+
+  async function reloadSampleTomDisplay() {
+    try {
+      if (isLocalStorageAvailable()) localStorage.removeItem(TOM_STORAGE_KEY);
+      let tom = await loadTomFromJsonFile();
+      if (!tom) tom = getFallbackTom();
+      tom = normalizeTom(tom);
+      saveTomToLocalStorage(tom);
+      currentTom = tom;
+      renderTomDisplay(tom);
+    } catch (error) {
+      console.error("Beispiel-TOM konnte nicht neu geladen werden:", error);
+      renderTomDisplay(null);
+    }
+  }
+
   function renderTomDisplay(tom) {
     const element = $("tomCurrentDisplay");
     if (!element) return;
     if (!tom) {
+      element.className = "tom-current-display empty-state";
       element.innerHTML = `
         <strong>Keine TOM verfügbar.</strong>
         <small>data/sample_tom.json konnte nicht geladen werden und es gibt keine TOM im localStorage.</small>
