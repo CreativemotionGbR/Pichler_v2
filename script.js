@@ -204,87 +204,19 @@
     },
   ];
   const FALLBACK_SAMPLE_TOM = {
-      "tom_id": "TOM-001",
-      "title": "Technisch-organisatorische Maßnahmen",
-      "version": "V5",
-      "valid_from": "2024-06-11",
-      "status": "Aktiv",
-      "file_name": "PTS DSGVO TOM V5.pdf",
-      "file_type": "application/pdf",
-      "file_size": 0,
-      "file_hash": "",
-      "source": "Fallback-TOM aus script.js",
-      "notes": "Eingebaute Fallback-TOM für lokale Anzeige, falls data/sample_tom.json nicht per fetch geladen werden kann.",
-      "current_text": "Technisch-organisatorische Maßnahmen\nVersion: V5\nGültig ab: 2024-06-11\n\n1. Vertraulichkeit\nDie Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt. Mitarbeitende werden auf Vertraulichkeit verpflichtet und erhalten nur Zugriff auf Daten, die sie zur Aufgabenerfüllung benötigen.\n\nZutrittskontrolle\nBüroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt. Schlüssel und Zugangsmittel werden kontrolliert ausgegeben und bei Austritt oder Rollenwechsel zurückgenommen. Besucher werden begleitet oder erhalten nur kontrollierten Zugang.\n\nZugangskontrolle\nIT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt. Nicht mehr benötigte Zugänge werden zeitnah deaktiviert.\n\nZugriffskontrolle\nBerechtigungen werden nach dem Need-to-know-Prinzip vergeben. Rollen und Rechte werden regelmäßig geprüft. Administrative Zugriffe sind auf berechtigte Personen beschränkt und werden dokumentiert.\n\nTrennungskontrolle\nDaten unterschiedlicher Kunden, Zwecke und Systeme werden logisch getrennt verarbeitet. Test- und Produktivdaten werden getrennt gehalten; produktive personenbezogene Daten werden in Tests nur genutzt, wenn dies erforderlich und zulässig ist.\n\n2. Integrität\nDie Integrität der Daten wird durch kontrollierte Änderungen, Protokollierung, Berechtigungskonzepte und Schutz vor unbefugter Manipulation gesichert.\n\nWeitergabekontrolle\nÜbermittlungen personenbezogener Daten erfolgen nur auf definierten Wegen und an berechtigte Empfänger. Externe Dienstleister werden vor Einsatz geprüft und vertraglich eingebunden.\n\nEingabekontrolle\nSoweit technisch möglich, werden Eingaben, Änderungen und Löschungen nachvollziehbar protokolliert. Verantwortlichkeiten für Datenänderungen sind intern festgelegt.\n\n3. Verfügbarkeit und Belastbarkeit\nSysteme werden durch Datensicherungen, Wiederherstellungsverfahren und Schutzmaßnahmen gegen Ausfall abgesichert. Backups werden regelmäßig erstellt und Wiederherstellungen stichprobenartig geprüft.\n\nVerfügbarkeitskontrolle\nWichtige Systeme werden gegen Verlust, unbeabsichtigte Zerstörung und technische Störungen geschützt. Wartungen und Updates erfolgen kontrolliert und werden dokumentiert.\n\n4. Verfahren zur regelmäßigen Überprüfung, Bewertung und Evaluierung\nDie Wirksamkeit der technischen und organisatorischen Maßnahmen wird regelmäßig überprüft und bei relevanten Änderungen angepasst. Ergebnisse werden dokumentiert.\n\nDatenschutzmanagement\nDatenschutzrelevante Prozesse, Zuständigkeiten und Dokumentationen werden gepflegt. Änderungen mit Datenschutzbezug werden bewertet und in der Änderungshistorie dokumentiert.\n\nIncident-Response-Management\nSicherheitsereignisse werden bewertet, dokumentiert und nach einem definierten Verfahren bearbeitet. Bei Bedarf werden Melde- und Informationspflichten geprüft.\n\nDatenschutzfreundliche Voreinstellungen\nSysteme und Prozesse werden soweit möglich datensparsam und mit datenschutzfreundlichen Voreinstellungen betrieben.\n\nAuftragskontrolle\nAuftragsverarbeiter werden sorgfältig ausgewählt, vertraglich geregelt und bei relevanten Änderungen überprüft. AVVs und Unterauftragsverhältnisse werden dokumentiert.\n\nVersion\nV1: Erstfassung.\nV5: Aktualisierte Beispiel-TOM für lokale Bearbeitung und TOM-Versionierung.",
-      "sections": [
-          {
-              "section_id": "tom-vertraulichkeit",
-              "title": "1. Vertraulichkeit",
-              "text": "Die Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt."
-          },
-          {
-              "section_id": "tom-zutrittskontrolle",
-              "title": "Zutrittskontrolle",
-              "text": "Büroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt."
-          },
-          {
-              "section_id": "tom-zugangskontrolle",
-              "title": "Zugangskontrolle",
-              "text": "IT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt."
-          },
-          {
-              "section_id": "tom-zugriffskontrolle",
-              "title": "Zugriffskontrolle",
-              "text": "Berechtigungen werden nach dem Need-to-know-Prinzip vergeben."
-          },
-          {
-              "section_id": "tom-trennungskontrolle",
-              "title": "Trennungskontrolle",
-              "text": "Daten unterschiedlicher Kunden, Zwecke und Systeme werden logisch getrennt verarbeitet."
-          },
-          {
-              "section_id": "tom-integritaet",
-              "title": "2. Integrität",
-              "text": "Die Integrität der Daten wird durch kontrollierte Änderungen, Protokollierung und Berechtigungskonzepte gesichert."
-          },
-          {
-              "section_id": "tom-weitergabekontrolle",
-              "title": "Weitergabekontrolle",
-              "text": "Übermittlungen personenbezogener Daten erfolgen nur auf definierten Wegen und an berechtigte Empfänger."
-          },
-          {
-              "section_id": "tom-eingabekontrolle",
-              "title": "Eingabekontrolle",
-              "text": "Soweit technisch möglich, werden Eingaben, Änderungen und Löschungen nachvollziehbar protokolliert."
-          },
-          {
-              "section_id": "tom-verfuegbarkeit",
-              "title": "3. Verfügbarkeit und Belastbarkeit",
-              "text": "Systeme werden durch Datensicherungen, Wiederherstellungsverfahren und Schutzmaßnahmen gegen Ausfall abgesichert."
-          },
-          {
-              "section_id": "tom-datenschutzmanagement",
-              "title": "4. Verfahren zur regelmäßigen Überprüfung, Bewertung und Evaluierung",
-              "text": "Die Wirksamkeit der technischen und organisatorischen Maßnahmen wird regelmäßig überprüft."
-          },
-          {
-              "section_id": "tom-incident-response",
-              "title": "Incident-Response-Management",
-              "text": "Sicherheitsereignisse werden bewertet, dokumentiert und nach einem definierten Verfahren bearbeitet."
-          },
-          {
-              "section_id": "tom-auftragskontrolle",
-              "title": "Auftragskontrolle",
-              "text": "Auftragsverarbeiter werden sorgfältig ausgewählt, vertraglich geregelt und bei relevanten Änderungen überprüft."
-          },
-          {
-              "section_id": "tom-version",
-              "title": "Version",
-              "text": "V1: Erstfassung. V5: Aktualisierte Beispiel-TOM für lokale Bearbeitung und TOM-Versionierung."
-          }
-      ],
-      "created_at": "2024-06-11T00:00:00.000Z",
-      "updated_at": "2024-06-11T00:00:00.000Z"
+    tom_id: "TOM-001",
+    title: "Technisch-organisatorische Maßnahmen",
+    version: "V5",
+    valid_from: "2024-06-11",
+    status: "Aktiv",
+    source: "Fallback-TOM aus script.js",
+    notes: "Eingebaute Fallback-TOM für lokale Anzeige.",
+    current_text: "Technisch-organisatorische Maßnahmen\nVersion: V5\nGültig ab: 2024-06-11\n\n1. Vertraulichkeit\nDie Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt.\n\nZutrittskontrolle\nBüroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt.\n\nZugangskontrolle\nIT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt.",
+    sections: [
+      { section_id: "tom-vertraulichkeit", title: "1. Vertraulichkeit", text: "Die Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt." },
+      { section_id: "tom-zutrittskontrolle", title: "Zutrittskontrolle", text: "Büroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt." },
+      { section_id: "tom-zugangskontrolle", title: "Zugangskontrolle", text: "IT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt." },
+    ],
   };
 
   let history = [];
@@ -350,7 +282,6 @@
     if ($("exportTomCsvBtn")) $("exportTomCsvBtn").addEventListener("click", exportTomCsv);
     if ($("exportTomJsonBtn")) $("exportTomJsonBtn").addEventListener("click", exportTomJson);
     if ($("deleteTomBtn")) $("deleteTomBtn").addEventListener("click", deleteTom);
-    if ($("reloadSampleTomBtn")) $("reloadSampleTomBtn").addEventListener("click", reloadSampleTomDisplay);
     $("customerAvvCsvUpload").addEventListener("change", importCustomerAvvCsvFile);
     $("customerAvvPdfUpload").addEventListener("change", importCustomerAvvPdf);
     $("exportCustomerAvvsCsvBtn").addEventListener("click", exportCustomerAvvsCsv);
@@ -1373,7 +1304,6 @@
       notes: sourceTom.notes || "",
       current_text: sourceTom.current_text || "",
       sections: Array.isArray(sourceTom.sections) ? sourceTom.sections : [],
-      updated_at: sourceTom.updated_at || "",
     };
   }
 
@@ -1567,7 +1497,7 @@
   }
 
   function renderTom() {
-    if (currentTom) renderTomDisplay(currentTom);
+    renderTomDisplay(currentTom);
   }
 
   async function importTomPdf(event) {
@@ -1764,21 +1694,24 @@
 
   async function initTomDisplayOnly() {
     try {
-      cleanupLegacyTomStorage();
-      let tom = loadTomDisplayCache();
-
+      let tom = await loadTomFromJsonFile();
       if (!tom) {
-        tom = await loadTomFromJsonFile();
-        saveTomDisplayCache(normalizeTom(tom));
+        tom = loadTomFromLocalStorage();
       }
-
-      tom = normalizeTom(tom || getFallbackTom());
-      console.log("TOM aus JSON geladen:", tom);
-      console.log("TOM-Version:", tom.version);
-      console.log("TOM-Text Länge:", tom.current_text?.length);
-      console.log("TOM-Abschnitte:", tom.sections?.length);
-      currentTom = tom;
-      renderTomDisplay(tom);
+      if (!tom) {
+        tom = getFallbackTom();
+      }
+      if (tom) {
+        tom = normalizeTom(tom);
+        console.log("Geladene TOM:", tom);
+        console.log("TOM sections:", tom.sections?.length);
+        console.log("TOM current_text length:", tom.current_text?.length);
+        saveTomToLocalStorage(tom);
+        currentTom = tom;
+        renderTomDisplay(tom);
+      } else {
+        renderTomDisplay(null);
+      }
     } catch (error) {
       console.error("TOM-Anzeige konnte nicht geladen werden:", error);
       const fallbackTom = normalizeTom(getFallbackTom());
@@ -1801,19 +1734,8 @@
     localStorage.setItem(TOM_DISPLAY_STORAGE_KEY, JSON.stringify(tom));
   }
 
-  function loadTomDisplayCache() {
-    if (!isLocalStorageAvailable()) return null;
-    try {
-      const raw = localStorage.getItem(TOM_DISPLAY_STORAGE_KEY);
-      return raw ? normalizeTom(JSON.parse(raw)) : null;
-    } catch (error) {
-      localStorage.removeItem(TOM_DISPLAY_STORAGE_KEY);
-      return null;
-    }
-  }
-
   function getFallbackTom() {
-    return { ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" };
+    return normalizeTom({ ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" });
   }
 
   function cleanupLegacyTomStorage() {
@@ -1830,20 +1752,44 @@
 
   async function reloadSampleTomDisplay() {
     try {
-      cleanupLegacyTomStorage();
-      if (isLocalStorageAvailable()) localStorage.removeItem(TOM_DISPLAY_STORAGE_KEY);
-      let tom = await loadTomFromJsonFile();
-      if (!tom) tom = getFallbackTom();
-      tom = normalizeTom(tom);
-      saveTomDisplayCache(tom);
-      currentTom = tom;
-      renderTomDisplay(tom);
+      const raw = localStorage.getItem(TOM_STORAGE_KEY);
+      return raw ? normalizeTom(JSON.parse(raw)) : null;
     } catch (error) {
       console.error("Beispiel-TOM konnte nicht neu geladen werden:", error);
       const fallbackTom = normalizeTom(getFallbackTom());
       saveTomDisplayCache(fallbackTom);
       currentTom = fallbackTom;
       renderTomDisplay(fallbackTom);
+    }
+  }
+
+  function isUsableTom(tom) {
+    return Boolean(
+      tom &&
+      tom.title &&
+      tom.version &&
+      tom.version !== "–" &&
+      tom.valid_from &&
+      tom.valid_from !== "–" &&
+      tom.status &&
+      tom.current_text &&
+      Array.isArray(tom.sections) &&
+      tom.sections.length > 0
+    );
+  }
+
+  async function reloadSampleTomDisplay() {
+    try {
+      if (isLocalStorageAvailable()) localStorage.removeItem(TOM_STORAGE_KEY);
+      let tom = await loadTomFromJsonFile();
+      if (!tom) tom = getFallbackTom();
+      tom = normalizeTom(tom);
+      saveTomToLocalStorage(tom);
+      currentTom = tom;
+      renderTomDisplay(tom);
+    } catch (error) {
+      console.error("Beispiel-TOM konnte nicht neu geladen werden:", error);
+      renderTomDisplay(null);
     }
   }
 
@@ -1858,10 +1804,7 @@
       `;
       return;
     }
-    const normalizedTom = normalizeTom(tom);
-    currentTom = normalizedTom;
-    element.className = "tom-current-display";
-    const sections = Array.isArray(normalizedTom.sections) && normalizedTom.sections.length ? normalizedTom.sections : parseTomSections(normalizedTom.current_text || "");
+    const sections = Array.isArray(tom.sections) && tom.sections.length ? tom.sections : parseTomSections(tom.current_text || "");
     element.innerHTML = `
       <strong>${escapeHtml(normalizedTom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
