@@ -1,163 +1,138 @@
-# Lokale DSGVO-Änderungsbewertungs-App
+# Lokale DSGVO-Change-Manager-App
 
-Dieses Projekt ist eine erste MVP-Version einer lokal ausführbaren Python-/Streamlit-App zur Bewertung und Dokumentation DSGVO-relevanter technischer Änderungen.
+Diese App ist eine lokale Browser-App zur regelbasierten Bewertung und Dokumentation DSGVO-relevanter technischer Änderungen. Sie läuft direkt per Doppelklick auf `index.html` und benötigt keinen Server, keine Python-App, kein Streamlit, keinen Build-Schritt, kein Framework, keine Cloud, keine externen APIs, keine externen LLMs, kein CDN und keine externen Fonts.
 
-Die App läuft lokal auf einem Windows-PC und benötigt keine Cloud-Dienste, keine n8n-Installation, keine API-Keys und keine externen LLM-Aufrufe.
+Alle strukturierten Daten werden im Browser in `localStorage` gespeichert. PDF-Dateien werden nicht ins Internet übertragen.
 
-## Funktionsumfang im MVP
-
-- lokale Streamlit-Oberfläche
-- manuelle Änderungseingabe über Formular
-- CSV-/Excel-Import vorbereiteter Änderungen
-- regelbasierte Bewertung in `Low`, `Medium` oder `High`
-- AVV- und TOM-Zuordnung
-- Maßnahmenableitung
-- lokale Speicherung in `data/change_history.csv`
-- Beispieldaten in `data/sample_changes.csv`
-- vorbereiteter, deaktivierbarer E-Mail-Import ohne echte IMAP-Verbindung
-- Tests mit `pytest`
-
-## Projektstruktur
+## Start
 
 ```text
-project/
-  app.py
-  requirements.txt
-  README.md
-  .gitignore
-  .env.example
-  data/
-    sample_changes.csv
-    change_history.csv
-  src/
-    rules.py
-    validation.py
-    storage.py
-    diff_utils.py
-    email_import.py
-  tests/
-    test_rules.py
-    test_validation.py
-    test_email_import.py
+index.html per Doppelklick im Browser öffnen
 ```
 
-## Installation unter Windows
+## Bestehende Funktionen
 
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+- Dokumentation technischer Änderungen über ein lokales Formular
+- regelbasierte Impact-Bewertung in `Low`, `Medium` oder `High`
+- AVV-/TOM-Zuordnung auf Basis der Änderungsdaten
+- Maßnahmen- und Änderungsvorschläge
+- Diff-Dokumentation über `old_text` und `new_text`
+- lokale Änderungshistorie
+- CSV-Import und CSV-Export für Änderungen
+- Komplett-Backup als JSON
+- lokale Speicherung im Browser
+- vorbereiteter manueller E-Mail-/EML-Import ohne Netzwerkverbindung
+
+## TOM verwalten
+
+Der Bereich **TOM** ist in diesem Schritt bewusst minimal gehalten. Beim Laden der App prüft die Anzeige zuerst `localStorage` unter dem Key `dsgvo.tom.current`. Wenn dort keine TOM vorhanden ist, versucht die App `data/sample_tom.json` zu laden. Falls das lokale Laden per Doppelklick vom Browser blockiert wird, nutzt die App eine eingebaute Fallback-TOM aus `script.js`.
+
+Angezeigt werden nur:
+
+- Titel
+- Version
+- gültig ab
+- Status
+- Quelle
+- vollständiger TOM-Text aus `current_text`
+- Abschnitte aus `sections`, falls vorhanden
+
+Es gibt in diesem TOM-Bereich keine PDF-Import-, Speicher-, Export- oder Bearbeitungsbuttons. Die Anzeige blockiert bei Fehlern nicht die restliche App.
+
+## Kunden-AVVs verwalten
+
+Der Bereich **Kunden-AVVs** verwaltet AVV-Datensätze pro Kunde lokal im Browser unter dem localStorage-Key `dsgvo.customerAvvs`.
+
+Die View enthält:
+
+- Summary-Karten für Gesamtzahl, Prüfung offen, Aktualisierung nötig und Aktiv
+- Suche
+- Statusfilter
+- CSV-Import
+- CSV-Export
+- optionalen PDF-Import für den ausgewählten Kunden-AVV
+- Tabelle aller Kunden-AVVs
+- Detailpanel für den ausgewählten Datensatz
+
+### CSV-Struktur für Kunden-AVVs
+
+Der CSV-Import erwartet folgende Spalten:
+
+```csv
+customer_avv_id,customer_id,customer_name,avv_title,avv_version,contract_date,status,affected_systems,data_categories,processor_name,last_review,review_status,notes
 ```
 
-## App starten
+Regeln beim Import:
 
-```powershell
-streamlit run app.py
+- Wenn `customer_avv_id` fehlt, generiert die App automatisch eine ID.
+- Wenn `customer_name` fehlt, wird die Zeile als Importfehler angezeigt.
+- Wenn `avv_title` fehlt, wird automatisch `AVV [customer_name]` gesetzt.
+- Doppelte `customer_avv_id` aktualisieren vorhandene Datensätze statt Dubletten anzulegen.
+- Importfehler werden verständlich im Bereich **Kunden-AVVs** angezeigt.
+
+### CSV-Beispiel für Kunden-AVVs
+
+```csv
+customer_avv_id,customer_id,customer_name,avv_title,avv_version,contract_date,status,affected_systems,data_categories,processor_name,last_review,review_status,notes
+CAVV-001,KND-001,Musterkunde GmbH,AVV Musterkunde GmbH,1.0,2024-08-30,Aktiv,"SBS Software, Support","Kundenstammdaten, Kommunikationsdaten",Pichler Training + Support,2026-06-09,OK,"Beispiel"
 ```
 
-Danach öffnet Streamlit eine lokale Weboberfläche im Browser. Alle Daten bleiben lokal im Projektordner.
+### AVV-PDF pro Kunde hinterlegen
 
-## Tests ausführen
+Für einen ausgewählten Kunden-AVV kann über **„AVV-PDF importieren“** optional eine PDF-Datei registriert werden. Die App speichert Dateiname, Größe, MIME-Type und Hash im Datensatz. Eine automatische PDF-Textauswertung erfolgt nicht; der Text kann im Detailpanel manuell eingefügt werden.
 
-```powershell
-pytest
+### Kunden-AVVs exportieren
+
+**„CSV exportieren“** im Bereich **Kunden-AVVs** erzeugt `kunden_avvs_export.csv` mit den Spalten:
+
+```csv
+customer_avv_id,customer_id,customer_name,avv_title,avv_version,contract_date,status,affected_systems,data_categories,processor_name,source_file,file_hash,last_review,review_status,notes
 ```
 
-## Datenmodell
+## Komplett-Backup als JSON
 
-Pflichtfelder:
+Der bestehende JSON-Export erzeugt `dsgvo_change_manager_backup.json` und enthält:
 
-- `change_id`
-- `date`
-- `change_type`
-- `description`
-- `security_change`
-- `affected_systems`
-- `personal_data`
-- `customers_affected`
-- `external_parties`
+- Änderungen
+- Änderungshistorie
+- Dokumentenbibliothek-Platzhalter
+- TOM-Datensatz
+- Kunden-AVVs
+- Versionsübersicht
+- Änderungsvorschläge / Maßnahmen
 
-Optionale Felder:
+## Verbindung zur Änderungsbewertung
 
-- `source`
-- `source_url`
-- `number_of_customers`
-- `old_text`
-- `new_text`
-- `notes`
-- `email_message_id`
-- `email_sender`
-- `email_subject`
-- `email_received_at`
-- `email_folder`
+Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button als prüfpflichtig markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.
 
-## Regelbewertung
+Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Aktuelle TOM prüfen“**. Die minimale TOM-Ansicht zeigt weiterhin die lokal geladene TOM aus `data/sample_tom.json` oder `localStorage`.
 
-Die Bewertung ist rein regelbasiert. Wenn mehrere Regeln zutreffen, gewinnt die höchste Stufe: `High` vor `Medium` vor `Low`.
+## Manuelle Testfälle
 
-Beispiele:
+1. **App per Doppelklick öffnen**
+   - Erwartung: Die bestehende Änderungserfassung, Bewertung und Änderungshistorie bleiben nutzbar.
 
-- neuer Dienstleister mit personenbezogenen Daten → `High`, AVV betroffen
-- Software-Update ohne Datenbezug → `Low`
-- API-Änderung mit personenbezogenen Daten → `High`, AVV/TOM betroffen
-- unbekannter oder unklarer Änderungstyp → `Medium`, manuelle Prüfung
-- Sicherheitsänderung, Backup, Rechte/Rollen, Verschlüsselung oder MFA/Login → TOM betroffen
+2. **TOM-Beispieldaten anzeigen**
+   - Erwartung: Im Bereich **„Aktuelle TOM-Version“** wird die TOM aus `data/sample_tom.json` oder die Fallback-TOM angezeigt.
+   - Erwartung: Titel, Version, gültig ab, Status, Quelle, vollständiger TOM-Text und Abschnitte sind sichtbar.
 
-Wichtig: Die Regelbewertung ersetzt keine rechtliche Prüfung.
+3. **Kunden-AVV-CSV importieren**
+   - Erwartung: Kundendatensätze erscheinen in der Kunden-AVV-Tabelle.
 
-## Lokale Speicherung
+4. **Kunden-AVV als CSV exportieren**
+   - Erwartung: Datei `kunden_avvs_export.csv` wird heruntergeladen.
 
-Bewertete Änderungen werden lokal in folgender Datei gespeichert:
+5. **Lokale Daten löschen**
+   - Erwartung: Änderungshistorie, TOM-Daten und Kunden-AVVs werden gelöscht, ohne die restliche App zu blockieren.
 
-```text
-data/change_history.csv
-```
+## Rechtlicher Hinweis
 
-Beispieldaten liegen in:
+Alle Daten bleiben lokal. PDF-Dateien werden nicht ins Internet übertragen. Das Tool ist eine Dokumentations- und Prüfhilfe und ersetzt keine rechtliche Prüfung.
 
-```text
-data/sample_changes.csv
-```
+## TOM-Beispieldaten
 
-## CSV-/Excel-Import
+Beim ersten Start lädt die App eine Beispiel-TOM aus `data/sample_tom.json`. Falls der Browser das lokale Laden blockiert, nutzt die App eine eingebaute Fallback-TOM aus `script.js`. Die geladene TOM wird unter `dsgvo.tom.current` im Browser gespeichert und anschließend im Bereich **„Aktuelle TOM-Version“** angezeigt.
 
-Die App akzeptiert `.csv` und `.xlsx`-Dateien. Importdateien müssen mindestens die Pflichtspalten enthalten. Fehlende Pflichtspalten werden in der Oberfläche angezeigt, ohne dass die App abstürzt.
+## Warum JSON?
 
-## Optionaler E-Mail-Import
-
-Der E-Mail-Import ist im MVP nur vorbereitet. Es wird keine echte IMAP-Verbindung aufgebaut und es werden keine E-Mails gelöscht, verschoben, beantwortet oder versendet.
-
-Falls später eine lokale E-Mail-Konfiguration genutzt wird, darf sie nur über lokale Umgebungsvariablen oder eine `.env`-Datei erfolgen. Die Datei `.env` ist in `.gitignore` ausgeschlossen. Im Repository liegt nur `.env.example` mit Platzhaltern.
-
-## Modulübersicht
-
-- `app.py`: Streamlit-Oberfläche, Formular, Importbereich und Anzeige der Bewertung
-- `src/rules.py`: Impact-Logik, AVV-/TOM-Regeln und Maßnahmenableitung
-- `src/validation.py`: Pflichtfeldprüfung, Datumsprüfung und Normalisierung
-- `src/storage.py`: Laden, Bewerten und Speichern lokaler CSV-Daten
-- `src/diff_utils.py`: Textvergleich und Hash-Funktionen
-- `src/email_import.py`: vorbereitete Dummy-Funktionen für optionalen E-Mail-Import
-- `tests/`: pytest-Tests für Regeln, Validierung und Dummy-E-Mail-Verarbeitung
-
-## Verification Checklist
-
-- [x] App startet lokal mit `streamlit run app.py`
-- [x] Startup-Logik lädt lokale Daten
-- [x] Beispieldaten sind vorhanden
-- [x] Nutzer kann Änderungen manuell erfassen
-- [x] Pflichtfelder werden validiert
-- [x] Low/Medium/High-Klassifikation ist implementiert
-- [x] AVV/TOM-Zuordnung ist implementiert
-- [x] Maßnahmen werden abgeleitet
-- [x] Ergebnis wird lokal gespeichert
-- [x] E-Mail-Import ist optional und vorbereitet
-- [x] fehlende E-Mail-Zugangsdaten lassen die App weiterlaufen
-- [x] Tests sind mit `pytest` ausführbar
-- [x] keine n8n-Dateien, keine Secrets, keine Cloud-Pflicht
-
-## Open decisions
-
-- Der E-Mail-Import ist im MVP nur vorbereitet; echte IMAP-Anbindung bleibt eine spätere Entscheidung.
-- Website-Monitoring ist nicht Teil dieses MVP.
-- Ergebnisse werden im MVP als CSV gespeichert; JSON kann später ergänzt werden.
-- AVV-/TOM-Dokumente werden nicht automatisch geändert, sondern nur als betroffen markiert.
+Die TOM wird als JSON bereitgestellt, weil JSON Metadaten, vollständigen Text und Abschnitte besser abbilden kann als CSV. In diesem Schritt dient die TOM-Ansicht ausschließlich der lokalen Anzeige.

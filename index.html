@@ -21,6 +21,13 @@
     </div>
   </header>
 
+  <nav class="app-nav" aria-label="Hauptbereiche">
+    <a href="#changeForm">Änderung erfassen</a>
+    <a href="#history-title">Änderungshistorie</a>
+    <a href="#view-tom">TOM</a>
+    <a href="#view-customer-avvs">Kunden-AVVs</a>
+  </nav>
+
   <main class="app-shell">
     <section class="panel form-panel" aria-labelledby="form-title">
       <div class="section-heading">
@@ -158,6 +165,54 @@
         <thead></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </section>
+
+
+
+  <section id="view-tom" class="panel app-view tom-panel" aria-labelledby="tom-title">
+    <div class="section-heading wrap">
+      <div>
+        <p class="eyebrow dark">Aktuelle TOM</p>
+        <h2 id="tom-title">TOM verwalten</h2>
+        <p>Die aktuelle TOM wird aus data/sample_tom.json geladen und lokal im Browser angezeigt.</p>
+      </div>
+    </div>
+    <article class="summary-card tom-current-card" aria-labelledby="tom-current-title">
+      <span id="tom-current-title">Aktuelle TOM-Version</span>
+      <div id="tomCurrentDisplay" class="tom-current-display">
+        <strong>Keine TOM verfügbar.</strong>
+        <small>data/sample_tom.json konnte noch nicht geladen werden.</small>
+      </div>
+    </article>
+  </section>
+
+  <section id="view-customer-avvs" class="panel app-view customer-avv-panel" aria-labelledby="customer-avv-title">
+    <div class="section-heading wrap">
+      <div>
+        <p class="eyebrow dark">Kundenbezogene AVVs</p>
+        <h2 id="customer-avv-title">Kunden-AVVs verwalten</h2>
+        <p>CSV-Daten importieren, AVV-PDF je Kunde registrieren und prüfpflichtige Datensätze lokal markieren.</p>
+      </div>
+    </div>
+    <div id="customerAvvMessage" class="alert hidden"></div>
+    <div class="summary-grid">
+      <article class="summary-card"><span>Kunden-AVVs gesamt</span><strong id="avvCountTotal">0</strong></article>
+      <article class="summary-card warning-card"><span>Prüfung offen</span><strong id="avvCountOpen">0</strong></article>
+      <article class="summary-card danger-card"><span>Aktualisierung nötig</span><strong id="avvCountUpdate">0</strong></article>
+      <article class="summary-card success-card"><span>Aktiv</span><strong id="avvCountActive">0</strong></article>
+    </div>
+    <div class="toolbar">
+      <input id="customerAvvSearch" type="search" placeholder="Kunde, Nummer, System oder Datenart suchen">
+      <select id="customerAvvStatusFilter"><option value="">Alle Status</option><option>Aktiv</option><option>Prüfung offen</option><option>Aktualisierung nötig</option><option>Gekündigt</option><option>Archiviert</option></select>
+      <label class="file-button">CSV importieren<input id="customerAvvCsvUpload" type="file" accept=".csv,text/csv"></label>
+      <button id="exportCustomerAvvsCsvBtn" class="secondary" type="button">CSV exportieren</button>
+      <label class="file-button">AVV-PDF importieren<input id="customerAvvPdfUpload" type="file" accept="application/pdf,.pdf"></label>
+    </div>
+    <div class="table-wrap"><table id="customerAvvTable"><thead></thead><tbody></tbody></table></div>
+    <div class="detail-panel">
+      <h3>Detailpanel ausgewählter Kunden-AVV</h3>
+      <div id="customerAvvDetail" class="empty-state">Noch kein Kunden-AVV ausgewählt.</div>
     </div>
   </section>
 
