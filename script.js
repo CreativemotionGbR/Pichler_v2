@@ -234,8 +234,9 @@
   document.addEventListener("DOMContentLoaded", () => {
     try {
       initTomDisplayOnly();
+      bindTomEvents();
     } catch (error) {
-      console.error("TOM-Anzeige konnte nicht geladen werden:", error);
+      console.error("TOM-Modul konnte nicht gestartet werden:", error);
     }
   });
 
@@ -1280,10 +1281,7 @@
   }
 
   function saveTomFromForm() {
-    currentTom = normalizeTom(getTomFromForm());
-    persistTom();
-    renderTom();
-    showMessage("tomMessage", "TOM-Metadaten wurden lokal gespeichert.", "warning");
+    return;
   }
 
   function markTomAsAffected(highImpact = false) {
@@ -1293,22 +1291,15 @@
   }
 
   function deleteTom() {
-    if (!confirm("Aktuelle TOM wirklich löschen?")) return;
-    currentTom = null;
-    persistTom();
-    renderTom();
-    showMessage("tomMessage", "Aktuelle TOM wurde gelöscht.", "warning");
+    return;
   }
 
   function exportTomCsv() {
-    const tom = currentTom || getTomFromForm();
-    downloadFile("tom_export.csv", toCsv([tom], ["tom_id","title","version","valid_from","file_name","file_type","file_size","file_hash","hash","status","notes","updated_at"]), "text/csv;charset=utf-8");
-    downloadFile("tom_sections_export.csv", toCsv(tom.sections || [], ["section_id","title","text"]), "text/csv;charset=utf-8");
+    return;
   }
 
   function exportTomJson() {
-    const tom = normalizeTom(currentTom || getTomFromForm());
-    downloadFile("current_tom.json", JSON.stringify(tom, null, 2), "application/json");
+    return;
   }
 
 
@@ -1525,6 +1516,20 @@
     } catch (error) {
       localStorage.removeItem(TOM_STORAGE_KEY);
     }
+
+    const row = rows[0];
+    const text = row.current_text || "";
+
+    return {
+      tom_id: row.tom_id || "TOM-001",
+      title: row.title || "Technisch-organisatorische Maßnahmen",
+      version: row.version || "V5",
+      valid_from: row.valid_from || "2024-06-11",
+      status: row.status || "Aktiv",
+      source: row.source || "data/sample_tom.csv",
+      current_text: text,
+      sections: parseTomSections(text),
+    };
   }
 
   async function reloadSampleTomDisplay() {
@@ -1673,12 +1678,16 @@ Auftragsverarbeiter werden sorgfältig ausgewählt und vertraglich geregelt."`;
       <pre class="tom-full-text tom-full-text-preview">${escapeHtml(normalizedTom.current_text || "")}</pre>
       <h3>Abschnitte</h3>
       <div class="tom-sections-list">
-        ${sections.length ? sections.map((section) => `
-          <article class="tom-section-card">
-            <h4>${escapeHtml(section.title || "Abschnitt")}</h4>
-            <p>${escapeHtml(section.text || "")}</p>
-          </article>
-        `).join("") : `<div class="empty-state">Keine Abschnitte vorhanden.</div>`}
+        ${
+          sections.length
+            ? sections.map((section) => `
+              <article class="tom-section-card">
+                <h4>${escapeHtml(section.title || "Abschnitt")}</h4>
+                <p>${escapeHtml(section.text || "")}</p>
+              </article>
+            `).join("")
+            : `<div class="empty-state">Keine Abschnitte vorhanden.</div>`
+        }
       </div>
     `;
     document.getElementById("editTomBtn")?.addEventListener("click", enterTomEditMode);
