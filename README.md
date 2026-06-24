@@ -127,11 +127,24 @@ Der bestehende JSON-Export erzeugt `dsgvo_change_manager_backup.json` und enthä
 - Versionsübersicht
 - Änderungsvorschläge / Maßnahmen
 
+## Webseiten-Screening-Prototyp
+
+Der Bereich **Webseiten-Screening** zeigt lokal gespeicherte Treffer aus `data/web_scan_results.json`.
+Der Scan läuft nicht im Browser, weil Webseiten RSS-/HTML-Abrufe durch CORS blockieren können.
+
+Lokal starten:
+
+```bash
+python src/web_feed_scanner.py
+```
+
+Danach `index.html` neu laden. Der Prototyp prüft einmalig `datenschutzticker.de` und `dr-datenschutz.de`, nutzt RSS soweit erreichbar und fällt sonst auf einfaches HTML-Screening zurück. Es gibt keine Hintergrundüberwachung, keinen Login, kein Tracking und keinen Mailversand.
+
 ## Verbindung zur Änderungsbewertung
 
-Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button als prüfpflichtig markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.
+Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button zur Prüfung markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.
 
-Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Aktuelle TOM prüfen“**. Die TOM kann aus der Ergebnisbox oder aus der TOM-View als prüfpflichtig markiert werden.
+Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Aktuelle TOM prüfen“**. Die TOM kann aus der Ergebnisbox oder aus der TOM-View zur Prüfung markiert werden.
 
 ## Manuelle Testfälle
 
@@ -141,7 +154,7 @@ Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Akt
    - Erwartung: TOM-Datensatz wird gespeichert.
    - Erwartung: TOM erscheint in der TOM-View.
 
-2. **TOM als prüfpflichtig markieren**
+2. **TOM zur Prüfung markieren**
    - Erwartung: TOM-Status wird `Prüfung offen`.
 
 3. **Kunden-AVV-CSV importieren**
@@ -152,11 +165,11 @@ Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Akt
 
 5. **AVV-relevante Änderung bewerten**
    - Erwartung: Ergebnis zeigt `Betroffene Kunden-AVVs prüfen`.
-   - Erwartung: aktive Kunden-AVVs können als prüfpflichtig markiert werden.
+   - Erwartung: aktive Kunden-AVVs können zur Prüfung markiert werden.
 
 6. **TOM-relevante Änderung bewerten**
    - Erwartung: Ergebnis zeigt `Aktuelle TOM prüfen`.
-   - Erwartung: TOM kann als prüfpflichtig markiert werden.
+   - Erwartung: TOM kann zur Prüfung markiert werden.
 
 7. **Lokale Daten löschen**
    - Erwartung: Änderungshistorie, TOM-Daten und Kunden-AVVs werden gelöscht.
@@ -164,27 +177,3 @@ Wenn eine Änderung TOM-relevant ist, zeigt die Ergebnisbox zusätzlich **„Akt
 ## Rechtlicher Hinweis
 
 Alle Daten bleiben lokal. PDF-Dateien werden nicht ins Internet übertragen. Das Tool ist eine Dokumentations- und Prüfhilfe und ersetzt keine rechtliche Prüfung.
-
-## TOM-Beispieldaten
-
-Beim ersten Start prüft die App zuerst den localStorage-Key `dsgvo.tom.current`. Wenn dort noch keine TOM gespeichert ist, lädt die App eine Beispiel-TOM aus `data/sample_tom.json`. Falls der Browser das lokale Laden per Doppelklick blockiert, nutzt die App eine eingebaute Fallback-TOM aus `script.js` und speichert diese ebenfalls lokal.
-
-Die Beispiel-TOM enthält Metadaten, vollständigen TOM-Text und zusätzlich erkannte Abschnitte wie Vertraulichkeit, Zutrittskontrolle, Zugangskontrolle, Zugriffskontrolle, Integrität, Verfügbarkeit, Datenschutzmanagement, Incident-Response-Management, Auftragskontrolle und Version.
-
-## TOM bearbeiten
-
-Die vollständige TOM wird im Bereich **„Aktuelle TOM-Version“** als bearbeitbarer Text angezeigt. Änderungen im großen Editor `tomFullTextEditor` werden erst übernommen, wenn **„TOM-Text speichern“** oder **„Neue TOM-Version erstellen“** geklickt wird.
-
-- **TOM-Text speichern** aktualisiert `current_text`, `updated_at` und die automatisch erkannten Abschnitte in `sections`.
-- **Neue TOM-Version erstellen** vergleicht den gespeicherten TOM-Text mit dem Editorinhalt. Bei Änderungen wird die bisherige Version unter `dsgvo.tom.versions` gesichert und die aktuelle TOM-Version fortgeschrieben, z. B. von `V5` auf `V5.1`.
-- **TOM zurücksetzen auf Beispiel-TOM** ersetzt nach Bestätigung die aktuelle TOM durch `data/sample_tom.json` oder die eingebaute Fallback-TOM.
-
-## Warum JSON?
-
-Die TOM wird als JSON gespeichert, weil JSON Metadaten, vollständigen Text, Abschnitte, Zeitstempel und Versionen besser abbilden kann als CSV. CSV dient nur als Tabellenexport für Metadaten und TOM-Abschnitte.
-
-## TOM-Exportdateien
-
-- `current_tom.json`: vollständige aktuelle TOM inklusive Metadaten, `current_text`, `sections`, Notizen und `updated_at`.
-- `tom_export.csv`: tabellarischer Export der TOM-Metadaten.
-- `tom_sections_export.csv`: tabellarischer Export der automatisch erkannten TOM-Abschnitte.

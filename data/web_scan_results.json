@@ -1,0 +1,32 @@
+[
+  {
+    "source": "Datenschutzticker",
+    "title": "Beispiel: Auftragsverarbeitung und neue Dienstleister im Fokus",
+    "link": "https://www.datenschutzticker.de/",
+    "published_date": "2026-06-20",
+    "summary": "Ein Beitrag weist auf typische Prüfpunkte bei neuen Dienstleistern und Auftragsverarbeitung hin. Für die Änderungsbewertung kann dies ein Auslöser sein, AVV und betroffene Prozesse zu prüfen.",
+    "detected_at": "2026-06-24T09:00:00Z",
+    "relevance_estimate": "High",
+    "recommended_action": "Prüfen, ob bestehende oder neue Dienstleister betroffen sind und ob eine Änderung dokumentiert werden sollte."
+  },
+  {
+    "source": "Dr. Datenschutz",
+    "title": "Beispiel: Orientierungshilfe zu KI und Datenschutz",
+    "link": "https://www.dr-datenschutz.de/",
+    "published_date": "2026-06-18",
+    "summary": "Ein Beitrag beschreibt Datenschutzfragen rund um KI-Anwendungen und Cloud-Dienste. Das kann für Systeme relevant sein, in denen personenbezogene Daten verarbeitet werden.",
+    "detected_at": "2026-06-24T09:00:00Z",
+    "relevance_estimate": "Medium",
+    "recommended_action": "Sichten und bei betroffenen Systemen prüfen, ob TOM, AVV oder Änderungshistorie aktualisiert werden müssen."
+  },
+  {
+    "source": "Datenschutzticker",
+    "title": "Beispiel: Allgemeine Datenschutz-Nachricht ohne unmittelbaren Handlungsbedarf",
+    "link": "https://www.datenschutzticker.de/",
+    "published_date": "2026-06-15",
+    "summary": "Ein allgemeiner Beitrag ohne klaren Bezug zu eigenen Systemen, Dienstleistern oder Sicherheitsmaßnahmen.",
+    "detected_at": "2026-06-24T09:00:00Z",
+    "relevance_estimate": "Low",
+    "recommended_action": "Zur Kenntnis nehmen; aktuell keine direkte Änderung ableiten."
+  }
+]

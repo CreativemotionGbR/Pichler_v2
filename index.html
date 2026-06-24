@@ -26,6 +26,7 @@
     <a href="#history-title">Änderungshistorie</a>
     <a href="#view-tom">TOM</a>
     <a href="#view-customer-avvs">Kunden-AVVs</a>
+    <a href="#view-web-screening">Datenschutz-News</a>
   </nav>
 
   <main class="app-shell">
@@ -43,65 +44,65 @@
 
       <form id="changeForm" novalidate>
         <div class="grid two">
-          <label>change_id *
+          <label>Änderungs-ID *
             <input id="change_id" name="change_id" type="text" placeholder="CHG-001" required>
           </label>
-          <label>date *
-            <input id="date" name="date" type="date" required>
+          <label>Datum *
+            <input id="date" name="date" type="text" inputmode="numeric" placeholder="TT.MM.JJJJ" required>
           </label>
         </div>
 
-        <label>change_type *
+        <label>Änderungstyp *
           <select id="change_type" name="change_type" required></select>
         </label>
 
-        <label>description *
+        <label>Beschreibung *
           <textarea id="description" name="description" rows="4" placeholder="Beschreibe die technische Änderung." required></textarea>
         </label>
 
         <div class="grid two">
-          <label>security_change *
+          <label>Sicherheitsänderung *
             <select id="security_change" name="security_change" required></select>
           </label>
-          <label>affected_systems *
+          <label>Betroffene Systeme *
             <input id="affected_systems" name="affected_systems" type="text" placeholder="z. B. Ticketsystem" required>
           </label>
         </div>
 
         <div class="grid three">
-          <label>personal_data *
+          <label>Personenbezogene Daten *
             <select id="personal_data" name="personal_data" required></select>
           </label>
-          <label>customers_affected *
+          <label>Kunden betroffen *
             <select id="customers_affected" name="customers_affected" required></select>
           </label>
-          <label>external_parties *
+          <label>Externe Beteiligte *
             <select id="external_parties" name="external_parties" required></select>
           </label>
         </div>
 
         <div class="grid three">
-          <label>source
+          <label>Quelle
             <input id="source" name="source" type="text" placeholder="Manuelle Eingabe">
           </label>
-          <label>source_url
+          <label>Quellen-URL
             <input id="source_url" name="source_url" type="url" placeholder="https://...">
           </label>
-          <label>number_of_customers
+          <label>Anzahl Kunden
             <input id="number_of_customers" name="number_of_customers" type="number" min="0" step="1" placeholder="0">
           </label>
         </div>
 
         <div class="grid two">
-          <label>old_text
+          <label>Alter Text
             <textarea id="old_text" name="old_text" rows="3"></textarea>
           </label>
-          <label>new_text
+          <label>Neuer Text
             <textarea id="new_text" name="new_text" rows="3"></textarea>
           </label>
         </div>
 
-        <label>notes
+        <label>Notizen
           <textarea id="notes" name="notes" rows="3"></textarea>
         </label>
 
@@ -109,14 +110,14 @@
           <summary>Optional: E-Mail-Text oder .eml-Datei manuell übernehmen</summary>
           <p>Kein Login, kein IMAP, keine automatische Verbindung. Inhalte werden nur lokal im Formular verwendet.</p>
           <div class="grid three">
-            <label>email_sender
+            <label>E-Mail-Absender
               <input id="email_sender" name="email_sender" type="text">
             </label>
-            <label>email_subject
+            <label>E-Mail-Betreff
               <input id="email_subject" name="email_subject" type="text">
             </label>
-            <label>email_received_at
-              <input id="email_received_at" name="email_received_at" type="text" placeholder="2026-06-09 10:30">
+            <label>E-Mail-Eingang
+              <input id="email_received_at" name="email_received_at" type="text" placeholder="TT.MM.JJJJ HH:MM">
             </label>
           </div>
           <label>E-Mail-Text einfügen
@@ -186,25 +187,13 @@
       </div>
     </div>
     <div id="tomMessage" class="alert hidden"></div>
-    <article class="summary-card tom-current-card" aria-labelledby="tom-current-title">
-      <span id="tom-current-title">Aktuelle TOM-Version</span>
-      <div id="tomCurrentDisplay" class="tom-current-display">
-        <strong>Keine TOM gespeichert</strong>
-        <small>Status: keine lokale TOM vorhanden</small>
-      </div>
-      <label class="tom-full-editor-label">Bearbeitbarer vollständiger TOM-Text
-        <textarea id="tomFullTextEditor" rows="18" placeholder="Vollständigen TOM-Text hier bearbeiten"></textarea>
-      </label>
-      <div class="button-row">
-        <button id="saveTomTextBtn" type="button">TOM-Text speichern</button>
-        <button id="createTomVersionBtn" class="secondary" type="button">Neue TOM-Version erstellen</button>
-        <button id="resetTomSampleBtn" class="secondary" type="button">TOM zurücksetzen auf Beispiel-TOM</button>
-      </div>
-      <div>
-        <h3>Abschnitte</h3>
-        <div id="tomSectionsList" class="tom-sections-list"></div>
-      </div>
-    </article>
+    <div class="summary-grid one">
+      <article class="summary-card">
+        <span>Aktuelle TOM-Version</span>
+        <strong id="tomSummaryVersion">Keine TOM gespeichert</strong>
+        <small id="tomSummaryStatus">Status: –</small>
+      </article>
+    </div>
     <div class="tom-layout">
       <div class="card-block">
         <h3>Metadaten</h3>
@@ -212,7 +201,7 @@
           <label>TOM-ID<input id="tom_id" type="text" placeholder="TOM-001"></label>
           <label>Titel<input id="tom_title" type="text" placeholder="Technisch-organisatorische Maßnahmen"></label>
           <label>Version<input id="tom_version" type="text" placeholder="V5"></label>
-          <label>Datum / gültig ab<input id="tom_valid_from" type="date"></label>
+          <label>Datum / gültig ab<input id="tom_valid_from" type="text" inputmode="numeric" placeholder="TT.MM.JJJJ"></label>
           <label>Dateiname<input id="tom_file_name" type="text" readonly></label>
           <label>Dateityp<input id="tom_file_type" type="text" readonly></label>
           <label>Dateigröße<input id="tom_file_size" type="text" readonly></label>
@@ -232,6 +221,9 @@
         <div id="tomPreviewFallback" class="empty-state">Noch keine PDF-Vorschau verfügbar.</div>
       </div>
     </div>
+    <label>TOM-Text aus PDF hier einfügen / manuell dokumentieren
+      <textarea id="tom_current_text" rows="8" placeholder="TOM-Text aus PDF hier einfügen"></textarea>
+    </label>
     <div class="button-row">
       <button id="focusTomTextBtn" class="secondary" type="button">TOM-Text manuell einfügen</button>
       <button id="exportTomCsvBtn" class="secondary" type="button">TOM als CSV exportieren</button>
@@ -245,7 +237,7 @@
       <div>
         <p class="eyebrow dark">Kundenbezogene AVVs</p>
         <h2 id="customer-avv-title">Kunden-AVVs verwalten</h2>
-        <p>CSV-Daten importieren, AVV-PDF je Kunde registrieren und prüfpflichtige Datensätze lokal markieren.</p>
+        <p>CSV-Daten importieren, AVV-PDF je Kunde registrieren und Datensätze lokal zur Prüfung markieren.</p>
       </div>
     </div>
     <div id="customerAvvMessage" class="alert hidden"></div>
@@ -267,6 +259,22 @@
       <h3>Detailpanel ausgewählter Kunden-AVV</h3>
       <div id="customerAvvDetail" class="empty-state">Noch kein Kunden-AVV ausgewählt.</div>
     </div>
+  </section>
+
+  <section id="view-web-screening" class="panel app-view" aria-labelledby="web-screening-title">
+    <div class="section-heading wrap">
+      <div>
+        <p class="eyebrow dark">Prototyp</p>
+        <h2 id="web-screening-title">Datenschutz-News prüfen</h2>
+        <p>Relevante Datenschutz-Webseiten können perspektivisch regelmäßig geprüft werden. Neue Beiträge werden hier als mögliche Änderungsauslöser angezeigt.</p>
+      </div>
+      <button id="reloadWebScanBtn" class="secondary" type="button">Demo-Beiträge laden</button>
+    </div>
+    <div class="alert warning">
+      Prototyp: Die Einschätzung ist eine Orientierung und ersetzt keine rechtliche Prüfung. Es werden keine E-Mails versendet, keine Logins genutzt und keine Hintergrundüberwachung gestartet.
+    </div>
+    <div id="webScanMessage" class="alert hidden"></div>
+    <div id="webScanResults" class="web-scan-results empty-state">Noch keine Beiträge geladen.</div>
   </section>
 
   <footer>
