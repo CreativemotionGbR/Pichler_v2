@@ -119,7 +119,6 @@
     "Neuer Subunternehmer",
     "Freelancer mit Zugriff",
     "API-Änderung",
-    "API entfernt",
     "Infrastrukturänderung",
     "Backup geändert",
     "Rechte-/Rollenkonzept geändert",
@@ -133,10 +132,12 @@
     "Freelancer mit Zugriff",
   ]);
   const TOM_CHANGE_TYPES = new Set([
+    "Software-Update mit Datenbezug",
     "Backup geändert",
     "Rechte-/Rollenkonzept geändert",
     "Verschlüsselung geändert",
     "Infrastrukturänderung",
+    "System wird abgeschaltet",
     "Datenschutzvorfall / Sicherheitsereignis",
   ]);
   const FALLBACK_SAMPLE_CHANGES = [
@@ -414,6 +415,8 @@
 
     if (change.external_parties === "Ja" && change.personal_data === "Ja") score = Math.max(score, 3);
     if (HIGH_CHANGE_TYPES.has(changeType)) score = Math.max(score, 3);
+    if (changeType === "Neues System" && change.personal_data === "Ja") score = Math.max(score, 3);
+    if (["Software-Update mit Datenbezug", "API entfernt", "System wird abgeschaltet"].includes(changeType)) score = Math.max(score, 2);
     if (change.customers_affected === "Ja" && customerCount > 10) score = Math.max(score, 3);
 
     const gdprFields = [change.security_change, change.personal_data, change.customers_affected, change.external_parties];
@@ -529,11 +532,17 @@
   }
 
   function isAvvAffected(change) {
-    return AVV_CHANGE_TYPES.has(change.change_type) || (change.external_parties === "Ja" && change.personal_data === "Ja");
+    return AVV_CHANGE_TYPES.has(change.change_type) ||
+      (change.external_parties === "Ja" && change.personal_data === "Ja") ||
+      (change.change_type === "Neues System" && change.personal_data === "Ja") ||
+      change.change_type === "System wird abgeschaltet";
   }
 
   function isTomAffected(change) {
-    return change.security_change === "Ja" || TOM_CHANGE_TYPES.has(change.change_type);
+    return change.security_change === "Ja" ||
+      TOM_CHANGE_TYPES.has(change.change_type) ||
+      (change.change_type === "Neues System" && change.personal_data === "Ja") ||
+      (change.change_type === "API entfernt" && change.personal_data === "Ja");
   }
 
   function deriveMeasures(change, documents, impact, customerInfo) {
