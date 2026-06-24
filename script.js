@@ -51,6 +51,49 @@
     "warnings",
   ];
   const DATE_FIELDS = new Set(["date", "saved_at", "email_received_at", "valid_from", "contract_date", "last_review"]);
+  const FIELD_LABELS = {
+    change_id: "Änderungs-ID",
+    date: "Datum",
+    change_type: "Änderungstyp",
+    description: "Beschreibung",
+    security_change: "Sicherheitsänderung",
+    affected_systems: "Betroffene Systeme",
+    personal_data: "Personenbezogene Daten",
+    customers_affected: "Kunden betroffen",
+    external_parties: "Externe Beteiligte",
+    source: "Quelle",
+    source_url: "Quellen-URL",
+    number_of_customers: "Anzahl Kunden",
+    old_text: "Alter Text",
+    new_text: "Neuer Text",
+    notes: "Notizen",
+    email_sender: "E-Mail-Absender",
+    email_subject: "E-Mail-Betreff",
+    email_received_at: "E-Mail-Eingang",
+    impact_level: "Bewertung",
+    gdpr_relevance: "DSGVO-Relevanz",
+    affected_documents: "Betroffene Dokumente",
+    measures: "Maßnahmen",
+    customer_information_required: "Kundeninformation erforderlich",
+    manual_review_required: "Manuelle Prüfung erforderlich",
+    summary: "Zusammenfassung",
+    warnings: "Hinweise",
+    saved_at: "Gespeichert am",
+    customer_avv_id: "Kunden-AVV-ID",
+    customer_id: "Kunden-ID",
+    customer_name: "Kunde",
+    avv_title: "AVV-Titel",
+    avv_version: "AVV-Version",
+    contract_date: "Vertragsdatum",
+    status: "Status",
+    data_categories: "Datenkategorien",
+    processor_name: "Auftragsverarbeiter",
+    source_file: "Quelldatei",
+    file_hash: "Datei-Hash",
+    last_review: "Letzte Prüfung",
+    review_status: "Prüfstatus",
+    action: "Aktion",
+  };
   const KNOWN_CHANGE_TYPES = [
     "Neuer Dienstleister",
     "Wechsel Dienstleister",
@@ -325,20 +368,20 @@
   function validateChange(change) {
     const errors = [];
     REQUIRED_FIELDS.forEach((field) => {
-      if (!change[field]) errors.push(`Pflichtfeld '${field}' fehlt.`);
+      if (!change[field]) errors.push(`Pflichtfeld '${fieldLabel(field)}' fehlt.`);
     });
     if (change.date && Number.isNaN(Date.parse(`${change.date}T00:00:00`))) {
-      errors.push("Pflichtfeld 'date' enthält kein gültiges Datum.");
+      errors.push("Pflichtfeld 'Datum' enthält kein gültiges Datum.");
     }
     ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
       if (change[field] && !YES_NO_UNKNOWN.includes(change[field])) {
-        errors.push(`Feld '${field}' muss Ja, Nein oder Unklar sein.`);
+        errors.push(`Feld '${fieldLabel(field)}' muss Ja, Nein oder Unklar sein.`);
       }
     });
     if (change.number_of_customers) {
       const number = Number(change.number_of_customers);
       if (!Number.isFinite(number) || number < 0) {
-        errors.push("Feld 'number_of_customers' muss eine nicht-negative Zahl sein.");
+        errors.push("Feld 'Anzahl Kunden' muss eine nicht-negative Zahl sein.");
       }
     }
     return errors;
@@ -566,7 +609,7 @@
   function renderHistory() {
     const thead = document.querySelector("#historyTable thead");
     const tbody = document.querySelector("#historyTable tbody");
-    thead.innerHTML = `<tr>${TABLE_COLUMNS.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr>`;
+    thead.innerHTML = `<tr>${TABLE_COLUMNS.map((column) => `<th>${escapeHtml(fieldLabel(column))}</th>`).join("")}</tr>`;
     if (history.length === 0) {
       tbody.innerHTML = `<tr><td colspan="${TABLE_COLUMNS.length}">Noch keine Änderungen gespeichert. Nutze das Formular oder lade Beispieldaten.</td></tr>`;
       return;
@@ -630,7 +673,7 @@
     }
     const missingColumns = REQUIRED_FIELDS.filter((field) => !(field in rows[0]));
     if (missingColumns.length) {
-      showMessage("importErrors", `Ungültige CSV-Spalten. Fehlende Pflichtspalten: ${missingColumns.join(", ")}`, "danger");
+      showMessage("importErrors", `Ungültige CSV-Spalten. Fehlende Pflichtspalten: ${missingColumns.map(fieldLabel).join(", ")}`, "danger");
       return;
     }
 
@@ -713,6 +756,10 @@
 
   function formatDisplayValue(column, value) {
     return DATE_FIELDS.has(column) ? formatDateForDisplay(value) : value || "";
+  }
+
+  function fieldLabel(field) {
+    return FIELD_LABELS[field] || field;
   }
 
   function exportJson() {
@@ -925,7 +972,7 @@
 
   function normalizeCustomerAvv(row, index) {
     const customerName = String(row.customer_name || "").trim();
-    if (!customerName) throw new Error(`Zeile ${index + 2}: customer_name fehlt.`);
+    if (!customerName) throw new Error(`Zeile ${index + 2}: Kunde fehlt.`);
     return {
       customer_avv_id: String(row.customer_avv_id || `CAVV-${Date.now()}-${index + 1}`).trim(),
       customer_id: String(row.customer_id || "").trim(),
@@ -981,7 +1028,7 @@
     $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
     $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
     const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
-    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(fieldLabel(c))}</th>`).join("")}</tr>`;
     document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
     document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
     renderCustomerAvvDetail();
@@ -1007,7 +1054,7 @@
     const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
     if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
     $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Zur Prüfung markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
+    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(fieldLabel(column))}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Zur Prüfung markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
     $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
     $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
   }
