@@ -371,6 +371,29 @@ footer {
 
 .summary-card span, .summary-card small { color: var(--muted); }
 .summary-card strong { font-size: 1.35rem; color: var(--text); }
+
+.web-scan-results {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.scan-result {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  background: #fff;
+}
+
+.scan-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.scan-result p {
+  margin: 0.55rem 0;
+}
 .warning-card { background: var(--medium); border-color: #ffd98b; }
 .danger-card { background: var(--high); border-color: #ffbdbd; }
 .success-card { background: var(--low); border-color: #b9ead0; }

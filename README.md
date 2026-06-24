@@ -127,6 +127,19 @@ Der bestehende JSON-Export erzeugt `dsgvo_change_manager_backup.json` und enthä
 - Versionsübersicht
 - Änderungsvorschläge / Maßnahmen
 
+## Webseiten-Screening-Prototyp
+
+Der Bereich **Webseiten-Screening** zeigt lokal gespeicherte Treffer aus `data/web_scan_results.json`.
+Der Scan läuft nicht im Browser, weil Webseiten RSS-/HTML-Abrufe durch CORS blockieren können.
+
+Lokal starten:
+
+```bash
+python src/web_feed_scanner.py
+```
+
+Danach `index.html` neu laden. Der Prototyp prüft einmalig `datenschutzticker.de` und `dr-datenschutz.de`, nutzt RSS soweit erreichbar und fällt sonst auf einfaches HTML-Screening zurück. Es gibt keine Hintergrundüberwachung, keinen Login, kein Tracking und keinen Mailversand.
+
 ## Verbindung zur Änderungsbewertung
 
 Wenn eine Änderung AVV-relevant ist, zeigt die Ergebnisbox zusätzlich **„Betroffene Kunden-AVVs prüfen“**. Aktive Kunden-AVVs und Datensätze mit `Prüfung offen` können über einen Button zur Prüfung markiert werden. Bei High-Impact-Änderungen wird der Review-Status auf `High Impact prüfen` gesetzt.

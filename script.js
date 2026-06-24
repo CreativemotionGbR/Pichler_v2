@@ -234,6 +234,7 @@
     renderHistory();
     renderTom();
     renderCustomerAvvs();
+    loadWebScanResults();
     bindEvents();
     if (history.length === 0) loadSampleData(true);
   }
@@ -261,6 +262,7 @@
     $("exportCustomerAvvsCsvBtn").addEventListener("click", exportCustomerAvvsCsv);
     $("customerAvvSearch").addEventListener("input", renderCustomerAvvs);
     $("customerAvvStatusFilter").addEventListener("change", renderCustomerAvvs);
+    $("reloadWebScanBtn").addEventListener("click", loadWebScanResults);
   }
 
   function populateSelect(id, options, selectedValue) {
@@ -1091,6 +1093,46 @@
     persistCustomerAvvs();
     renderCustomerAvvs();
     renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden zur Prüfung markiert.");
+  }
+
+  async function loadWebScanResults() {
+    hideMessage("webScanMessage");
+    const target = $("webScanResults");
+    target.className = "web-scan-results empty-state";
+    target.textContent = "Beiträge werden geladen ...";
+    try {
+      const response = await fetch("data/web_scan_results.json", { cache: "no-store" });
+      if (!response.ok) throw new Error("Scan-Datei konnte nicht geladen werden.");
+      renderWebScanResults(await response.json());
+    } catch (error) {
+      target.className = "web-scan-results empty-state";
+      target.textContent = "Keine Beiträge verfügbar.";
+      showMessage("webScanMessage", "Die Demo-Beiträge konnten nicht geladen werden. Falls die App direkt per Doppelklick geöffnet wurde, blockiert der Browser möglicherweise lokale JSON-Dateien.", "warning");
+    }
+  }
+
+  function renderWebScanResults(results) {
+    const target = $("webScanResults");
+    const entries = Array.isArray(results) ? results : [];
+    if (!entries.length) {
+      target.className = "web-scan-results empty-state";
+      target.textContent = "Noch keine Demo-Beiträge vorhanden.";
+      return;
+    }
+    target.className = "web-scan-results";
+    target.innerHTML = entries.map((entry) => `
+      <article class="scan-result">
+        <div class="scan-result-header">
+          <span class="table-impact impact-${escapeHtml(String(entry.relevance_estimate || "").toLowerCase())}">${escapeHtml(entry.relevance_estimate || "Low")}</span>
+          <strong>${escapeHtml(entry.title || "Ohne Titel")}</strong>
+        </div>
+        <p><strong>Quelle:</strong> ${escapeHtml(entry.source || "Unbekannt")} · <strong>Datum:</strong> ${escapeHtml(formatDateForDisplay(entry.published_date)) || "–"}</p>
+        <p><strong>Kurzbeschreibung:</strong> ${escapeHtml(entry.summary || "Keine Kurzbeschreibung vorhanden.")}</p>
+        <p><strong>Relevanz:</strong> ${escapeHtml(entry.relevance_estimate || "Low")}</p>
+        <p><strong>Empfohlene Aktion:</strong> ${escapeHtml(entry.recommended_action || "Sichten und bei Bedarf bewerten.")}</p>
+        ${entry.link ? `<a href="${escapeHtml(entry.link)}" target="_blank" rel="noopener noreferrer">Quelle öffnen</a>` : ""}
+      </article>
+    `).join("");
   }
 
   async function calculateSha256(file) {
