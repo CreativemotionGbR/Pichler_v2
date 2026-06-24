@@ -670,10 +670,15 @@
       ${renderAffectedReviewBox(result)}
       ${result.warnings.length ? `<div class="alert warning"><strong>Warnungen:</strong><br>${result.warnings.map(escapeHtml).join("<br>")}</div>` : ""}
     `;
-    const customerButton = $("markCustomerAvvsReviewBtn");
-    if (customerButton) customerButton.addEventListener("click", () => markRelevantCustomerAvvs(result.impact_level === "High"));
-    const tomButton = $("markTomReviewFromResultBtn");
-    if (tomButton) tomButton.addEventListener("click", () => markTomAsAffected(result.impact_level === "High"));
+    const customerAvvReviewBtn = document.getElementById("markRelevantCustomerAvvsBtn");
+    if (customerAvvReviewBtn) {
+      customerAvvReviewBtn.addEventListener("click", markRelevantCustomerAvvsForCurrentChange);
+    }
+
+    const tomReviewBtn = document.getElementById("markCurrentTomReviewBtn");
+    if (tomReviewBtn) {
+      tomReviewBtn.addEventListener("click", markCurrentTomForReviewFromChange);
+    }
   }
 
   function renderEmptyResult(message) {
@@ -1770,23 +1775,125 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
 
   function exportCustomerAvvsCsv() { downloadFile("kunden_avvs_export.csv", toCsv(customerAvvs, CUSTOMER_AVV_COLUMNS), "text/csv;charset=utf-8"); }
 
-  function renderAffectedReviewBox(result) {
-    const affected = Array.isArray(result.affected_documents) ? result.affected_documents : [];
-    const parts = [];
-    if (affected.includes("AVV")) {
-      const relevant = customerAvvs.filter((item) => ["Aktiv", "Prüfung offen"].includes(item.status));
-      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs als prüfpflichtig markieren</button></div>`);
+  function findRelevantCustomerAvvsForChange(changeOrEvaluation) {
+    const affectedSystems = String(changeOrEvaluation.affected_systems || "").toLowerCase();
+    const changeType = String(changeOrEvaluation.change_type || "");
+    const searchTerms = affectedSystems
+      .split(",")
+      .map((term) => term.trim())
+      .filter(Boolean);
+
+    const activeAvvs = customerAvvs.filter((avv) =>
+      ["Aktiv", "Prüfung offen", "Aktualisierung nötig"].includes(avv.status)
+    );
+
+    const matches = activeAvvs.filter((avv) => {
+      const avvSystems = String(avv.affected_systems || "").toLowerCase();
+      const avvText = String(avv.avv_text || "").toLowerCase();
+
+      return searchTerms.some((term) => avvSystems.includes(term) || avvText.includes(term));
+    });
+
+    if (matches.length > 0) return matches;
+
+    if (["Neuer Dienstleister", "Wechsel Dienstleister", "Neuer Subunternehmer", "Freelancer mit Zugriff"].includes(changeType)) {
+      return activeAvvs;
     }
-    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM als prüfpflichtig markieren</button></div>`);
-    return parts.length ? `<div class="review-actions">${parts.join("")}</div>` : "";
+
+    return customerAvvs.filter((avv) => ["Aktiv", "Prüfung offen"].includes(avv.status));
   }
 
-  function markRelevantCustomerAvvs(highImpact) {
-    customerAvvs = customerAvvs.map((item) => ["Aktiv", "Prüfung offen"].includes(item.status) ? { ...item, status: "Prüfung offen", review_status: highImpact ? "High Impact prüfen" : "Prüfen" } : item);
+  function renderFollowUpReviewBox(result) {
+    const affected = Array.isArray(result.affected_documents) ? result.affected_documents : [];
+    const parts = [];
+
+    if (affected.includes("AVV")) {
+      const relevantAvvs = findRelevantCustomerAvvsForChange(result);
+
+      parts.push(`
+        <div class="review-actions">
+          <strong>Betroffene Kunden-AVVs prüfen</strong>
+          <p>Diese Änderung kann kundenbezogene AVVs betreffen.</p>
+          ${
+            relevantAvvs.length
+              ? `<ul>${relevantAvvs.map((avv) => `<li>${escapeHtml(avv.customer_name)} – ${escapeHtml(avv.avv_title)}</li>`).join("")}</ul>`
+              : `<p>Keine eindeutigen Kunden-AVVs gefunden. Aktive Kunden-AVVs sollten manuell geprüft werden.</p>`
+          }
+          <button id="markRelevantCustomerAvvsBtn" class="secondary" type="button">Passende Kunden-AVVs zur Prüfung markieren</button>
+        </div>
+      `);
+    }
+
+    if (affected.includes("TOM")) {
+      parts.push(`
+        <div class="review-actions">
+          <strong>Aktuelle TOM prüfen</strong>
+          <p>Diese Änderung kann eine Prüfung oder Anpassung der aktuellen TOM erforderlich machen.</p>
+          <button id="markCurrentTomReviewBtn" class="secondary" type="button">TOM zur Prüfung markieren</button>
+        </div>
+      `);
+    }
+
+    return parts.length ? `<div class="follow-up-review-box"><h3>Folgeprüfung für TOM und Kunden-AVVs</h3>${parts.join("")}</div>` : "";
+  }
+
+  function renderAffectedReviewBox(result) {
+    return renderFollowUpReviewBox(result);
+  }
+
+  function appendReviewNote(existingNotes, note) {
+    const current = String(existingNotes || "").trim();
+    if (current.includes(note)) return current;
+    return [current, note].filter(Boolean).join("\n");
+  }
+
+  function markRelevantCustomerAvvsForCurrentChange() {
+    if (!lastEvaluation) return;
+
+    const relevantAvvs = findRelevantCustomerAvvsForChange(lastEvaluation);
+    const highImpact = lastEvaluation.impact_level === "High";
+
+    customerAvvs = customerAvvs.map((avv) => {
+      const isRelevant = relevantAvvs.some((item) => item.customer_avv_id === avv.customer_avv_id);
+      if (!isRelevant) return avv;
+
+      return {
+        ...avv,
+        status: "Prüfung offen",
+        review_status: highImpact ? "High Impact prüfen" : "Prüfen",
+        last_review: new Date().toISOString().slice(0, 10),
+        notes: appendReviewNote(
+          avv.notes,
+          `Prüfung ausgelöst durch Änderung ${lastEvaluation.change_id}: ${lastEvaluation.change_type}`
+        ),
+      };
+    });
+
     persistCustomerAvvs();
     renderCustomerAvvs();
-    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden als prüfpflichtig markiert.");
+    renderResult(lastEvaluation, "Passende Kunden-AVVs wurden zur Prüfung markiert.");
   }
+
+  function markCurrentTomForReviewFromChange() {
+    if (!lastEvaluation) return;
+
+    const tom = getTomForDisplay();
+    const updatedTom = {
+      ...tom,
+      status: lastEvaluation.impact_level === "High" ? "High Impact prüfen" : "Prüfung offen",
+      source: "Lokal bearbeitete TOM im Browser",
+      updated_at: new Date().toISOString(),
+      notes: appendReviewNote(
+        tom.notes,
+        `Prüfung ausgelöst durch Änderung ${lastEvaluation.change_id}: ${lastEvaluation.change_type}`
+      ),
+    };
+
+    saveEditedTom(updatedTom);
+    renderStaticTom();
+    renderResult(lastEvaluation, "Aktuelle TOM wurde zur Prüfung markiert.");
+  }
+
 
   async function calculateSha256(file) {
     if (typeof crypto === "undefined" || !crypto.subtle) return "SHA-256 im aktuellen Browser nicht verfügbar";
