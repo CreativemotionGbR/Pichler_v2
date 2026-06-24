@@ -253,7 +253,7 @@
 
     history = loadHistory();
     $("change_id").value = nextChangeId();
-    currentTom = loadTom();
+    currentTom = null;
     customerAvvs = loadCustomerAvvs();
     renderHistory();
     renderTom();
@@ -1292,26 +1292,17 @@
   }
 
   function normalizeTom(tom) {
-    const text = String(tom?.current_text || "");
-    const hash = String(tom?.file_hash || tom?.hash || "");
-    const sections = Array.isArray(tom?.sections) && tom.sections.length ? tom.sections : parseTomSections(text);
+    const sourceTom = tom || {};
     return {
-      tom_id: String(tom?.tom_id || "TOM-001"),
-      title: String(tom?.title || "Technisch-organisatorische Maßnahmen"),
-      version: String(tom?.version || "V1"),
-      valid_from: String(tom?.valid_from || new Date().toISOString().slice(0, 10)),
-      status: String(tom?.status || "Aktiv"),
-      file_name: String(tom?.file_name || ""),
-      file_type: String(tom?.file_type || ""),
-      file_size: Number(tom?.file_size || 0) || 0,
-      hash,
-      file_hash: hash,
-      source: String(tom?.source || "Lokale TOM"),
-      notes: String(tom?.notes || ""),
-      current_text: text,
-      sections,
-      created_at: String(tom?.created_at || new Date().toISOString()),
-      updated_at: String(tom?.updated_at || new Date().toISOString()),
+      tom_id: sourceTom.tom_id || "TOM-001",
+      title: sourceTom.title || "Technisch-organisatorische Maßnahmen",
+      version: sourceTom.version || "–",
+      valid_from: sourceTom.valid_from || "–",
+      status: sourceTom.status || "Aktiv",
+      source: sourceTom.source || "data/sample_tom.json",
+      notes: sourceTom.notes || "",
+      current_text: sourceTom.current_text || "",
+      sections: Array.isArray(sourceTom.sections) ? sourceTom.sections : [],
     };
   }
 
@@ -1702,14 +1693,18 @@
 
   async function initTomDisplayOnly() {
     try {
-      let tom = loadTomFromLocalStorage();
+      let tom = await loadTomFromJsonFile();
       if (!tom) {
-        tom = await loadTomFromJsonFile();
+        tom = loadTomFromLocalStorage();
       }
       if (!tom) {
         tom = getFallbackTom();
       }
       if (tom) {
+        tom = normalizeTom(tom);
+        console.log("Geladene TOM:", tom);
+        console.log("TOM sections:", tom.sections?.length);
+        console.log("TOM current_text length:", tom.current_text?.length);
         saveTomToLocalStorage(tom);
         currentTom = tom;
         renderTomDisplay(tom);
@@ -1733,7 +1728,7 @@
   }
 
   function getFallbackTom() {
-    return { ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" };
+    return normalizeTom({ ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" });
   }
 
   function saveTomToLocalStorage(tom) {
@@ -1745,7 +1740,7 @@
     if (!isLocalStorageAvailable()) return null;
     try {
       const raw = localStorage.getItem(TOM_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      return raw ? normalizeTom(JSON.parse(raw)) : null;
     } catch (error) {
       return null;
     }
@@ -1761,7 +1756,7 @@
       `;
       return;
     }
-    const sections = Array.isArray(tom.sections) ? tom.sections : [];
+    const sections = Array.isArray(tom.sections) && tom.sections.length ? tom.sections : parseTomSections(tom.current_text || "");
     element.innerHTML = `
       <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
