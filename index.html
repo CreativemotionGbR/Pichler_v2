@@ -26,6 +26,7 @@
     <a href="#history-title">Änderungshistorie</a>
     <a href="#view-tom">TOM</a>
     <a href="#view-customer-avvs">Kunden-AVVs</a>
+    <a href="#view-web-screening">Datenschutz-News</a>
   </nav>
 
   <main class="app-shell">
@@ -258,6 +259,22 @@
       <h3>Detailpanel ausgewählter Kunden-AVV</h3>
       <div id="customerAvvDetail" class="empty-state">Noch kein Kunden-AVV ausgewählt.</div>
     </div>
+  </section>
+
+  <section id="view-web-screening" class="panel app-view" aria-labelledby="web-screening-title">
+    <div class="section-heading wrap">
+      <div>
+        <p class="eyebrow dark">Prototyp</p>
+        <h2 id="web-screening-title">Datenschutz-News prüfen</h2>
+        <p>Relevante Datenschutz-Webseiten können perspektivisch regelmäßig geprüft werden. Neue Beiträge werden hier als mögliche Änderungsauslöser angezeigt.</p>
+      </div>
+      <button id="reloadWebScanBtn" class="secondary" type="button">Demo-Beiträge laden</button>
+    </div>
+    <div class="alert warning">
+      Prototyp: Die Einschätzung ist eine Orientierung und ersetzt keine rechtliche Prüfung. Es werden keine E-Mails versendet, keine Logins genutzt und keine Hintergrundüberwachung gestartet.
+    </div>
+    <div id="webScanMessage" class="alert hidden"></div>
+    <div id="webScanResults" class="web-scan-results empty-state">Noch keine Beiträge geladen.</div>
   </section>
 
   <footer>
