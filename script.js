@@ -3,6 +3,7 @@
 
   const STORAGE_KEY = "dsgvoChangeHistory.v2";
   const TOM_STORAGE_KEY = "dsgvo.tom.current";
+  const TOM_DISPLAY_STORAGE_KEY = "dsgvo.tom.current.v2";
   const CUSTOMER_AVVS_STORAGE_KEY = "dsgvo.customerAvvs";
   const REQUIRED_FIELDS = [
     "change_id",
@@ -202,6 +203,89 @@
       email_received_at: "",
     },
   ];
+  const FALLBACK_SAMPLE_TOM = {
+      "tom_id": "TOM-001",
+      "title": "Technisch-organisatorische Maßnahmen",
+      "version": "V5",
+      "valid_from": "2024-06-11",
+      "status": "Aktiv",
+      "file_name": "PTS DSGVO TOM V5.pdf",
+      "file_type": "application/pdf",
+      "file_size": 0,
+      "file_hash": "",
+      "source": "Fallback-TOM aus script.js",
+      "notes": "Eingebaute Fallback-TOM für lokale Anzeige, falls data/sample_tom.json nicht per fetch geladen werden kann.",
+      "current_text": "Technisch-organisatorische Maßnahmen\nVersion: V5\nGültig ab: 2024-06-11\n\n1. Vertraulichkeit\nDie Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt. Mitarbeitende werden auf Vertraulichkeit verpflichtet und erhalten nur Zugriff auf Daten, die sie zur Aufgabenerfüllung benötigen.\n\nZutrittskontrolle\nBüroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt. Schlüssel und Zugangsmittel werden kontrolliert ausgegeben und bei Austritt oder Rollenwechsel zurückgenommen. Besucher werden begleitet oder erhalten nur kontrollierten Zugang.\n\nZugangskontrolle\nIT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt. Nicht mehr benötigte Zugänge werden zeitnah deaktiviert.\n\nZugriffskontrolle\nBerechtigungen werden nach dem Need-to-know-Prinzip vergeben. Rollen und Rechte werden regelmäßig geprüft. Administrative Zugriffe sind auf berechtigte Personen beschränkt und werden dokumentiert.\n\nTrennungskontrolle\nDaten unterschiedlicher Kunden, Zwecke und Systeme werden logisch getrennt verarbeitet. Test- und Produktivdaten werden getrennt gehalten; produktive personenbezogene Daten werden in Tests nur genutzt, wenn dies erforderlich und zulässig ist.\n\n2. Integrität\nDie Integrität der Daten wird durch kontrollierte Änderungen, Protokollierung, Berechtigungskonzepte und Schutz vor unbefugter Manipulation gesichert.\n\nWeitergabekontrolle\nÜbermittlungen personenbezogener Daten erfolgen nur auf definierten Wegen und an berechtigte Empfänger. Externe Dienstleister werden vor Einsatz geprüft und vertraglich eingebunden.\n\nEingabekontrolle\nSoweit technisch möglich, werden Eingaben, Änderungen und Löschungen nachvollziehbar protokolliert. Verantwortlichkeiten für Datenänderungen sind intern festgelegt.\n\n3. Verfügbarkeit und Belastbarkeit\nSysteme werden durch Datensicherungen, Wiederherstellungsverfahren und Schutzmaßnahmen gegen Ausfall abgesichert. Backups werden regelmäßig erstellt und Wiederherstellungen stichprobenartig geprüft.\n\nVerfügbarkeitskontrolle\nWichtige Systeme werden gegen Verlust, unbeabsichtigte Zerstörung und technische Störungen geschützt. Wartungen und Updates erfolgen kontrolliert und werden dokumentiert.\n\n4. Verfahren zur regelmäßigen Überprüfung, Bewertung und Evaluierung\nDie Wirksamkeit der technischen und organisatorischen Maßnahmen wird regelmäßig überprüft und bei relevanten Änderungen angepasst. Ergebnisse werden dokumentiert.\n\nDatenschutzmanagement\nDatenschutzrelevante Prozesse, Zuständigkeiten und Dokumentationen werden gepflegt. Änderungen mit Datenschutzbezug werden bewertet und in der Änderungshistorie dokumentiert.\n\nIncident-Response-Management\nSicherheitsereignisse werden bewertet, dokumentiert und nach einem definierten Verfahren bearbeitet. Bei Bedarf werden Melde- und Informationspflichten geprüft.\n\nDatenschutzfreundliche Voreinstellungen\nSysteme und Prozesse werden soweit möglich datensparsam und mit datenschutzfreundlichen Voreinstellungen betrieben.\n\nAuftragskontrolle\nAuftragsverarbeiter werden sorgfältig ausgewählt, vertraglich geregelt und bei relevanten Änderungen überprüft. AVVs und Unterauftragsverhältnisse werden dokumentiert.\n\nVersion\nV1: Erstfassung.\nV5: Aktualisierte Beispiel-TOM für lokale Bearbeitung und TOM-Versionierung.",
+      "sections": [
+          {
+              "section_id": "tom-vertraulichkeit",
+              "title": "1. Vertraulichkeit",
+              "text": "Die Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt."
+          },
+          {
+              "section_id": "tom-zutrittskontrolle",
+              "title": "Zutrittskontrolle",
+              "text": "Büroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt."
+          },
+          {
+              "section_id": "tom-zugangskontrolle",
+              "title": "Zugangskontrolle",
+              "text": "IT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt."
+          },
+          {
+              "section_id": "tom-zugriffskontrolle",
+              "title": "Zugriffskontrolle",
+              "text": "Berechtigungen werden nach dem Need-to-know-Prinzip vergeben."
+          },
+          {
+              "section_id": "tom-trennungskontrolle",
+              "title": "Trennungskontrolle",
+              "text": "Daten unterschiedlicher Kunden, Zwecke und Systeme werden logisch getrennt verarbeitet."
+          },
+          {
+              "section_id": "tom-integritaet",
+              "title": "2. Integrität",
+              "text": "Die Integrität der Daten wird durch kontrollierte Änderungen, Protokollierung und Berechtigungskonzepte gesichert."
+          },
+          {
+              "section_id": "tom-weitergabekontrolle",
+              "title": "Weitergabekontrolle",
+              "text": "Übermittlungen personenbezogener Daten erfolgen nur auf definierten Wegen und an berechtigte Empfänger."
+          },
+          {
+              "section_id": "tom-eingabekontrolle",
+              "title": "Eingabekontrolle",
+              "text": "Soweit technisch möglich, werden Eingaben, Änderungen und Löschungen nachvollziehbar protokolliert."
+          },
+          {
+              "section_id": "tom-verfuegbarkeit",
+              "title": "3. Verfügbarkeit und Belastbarkeit",
+              "text": "Systeme werden durch Datensicherungen, Wiederherstellungsverfahren und Schutzmaßnahmen gegen Ausfall abgesichert."
+          },
+          {
+              "section_id": "tom-datenschutzmanagement",
+              "title": "4. Verfahren zur regelmäßigen Überprüfung, Bewertung und Evaluierung",
+              "text": "Die Wirksamkeit der technischen und organisatorischen Maßnahmen wird regelmäßig überprüft."
+          },
+          {
+              "section_id": "tom-incident-response",
+              "title": "Incident-Response-Management",
+              "text": "Sicherheitsereignisse werden bewertet, dokumentiert und nach einem definierten Verfahren bearbeitet."
+          },
+          {
+              "section_id": "tom-auftragskontrolle",
+              "title": "Auftragskontrolle",
+              "text": "Auftragsverarbeiter werden sorgfältig ausgewählt, vertraglich geregelt und bei relevanten Änderungen überprüft."
+          },
+          {
+              "section_id": "tom-version",
+              "title": "Version",
+              "text": "V1: Erstfassung. V5: Aktualisierte Beispiel-TOM für lokale Bearbeitung und TOM-Versionierung."
+          }
+      ],
+      "created_at": "2024-06-11T00:00:00.000Z",
+      "updated_at": "2024-06-11T00:00:00.000Z"
+  };
 
   let history = [];
   let currentTom = null;
@@ -238,7 +322,7 @@
 
     history = loadHistory();
     $("change_id").value = nextChangeId();
-    currentTom = loadTom();
+    currentTom = null;
     customerAvvs = loadCustomerAvvs();
     renderHistory();
     renderTom();
@@ -259,13 +343,14 @@
     $("clearDataBtn").addEventListener("click", clearLocalData);
     $("applyEmailTextBtn").addEventListener("click", applyEmailText);
     $("emlUpload").addEventListener("change", importEmlFile);
-    $("tomPdfUpload").addEventListener("change", importTomPdf);
-    $("saveTomBtn").addEventListener("click", saveTomFromForm);
-    $("markTomAffectedBtn").addEventListener("click", markTomAsAffected);
-    $("focusTomTextBtn").addEventListener("click", () => $("tom_current_text").focus());
-    $("exportTomCsvBtn").addEventListener("click", exportTomCsv);
-    $("exportTomJsonBtn").addEventListener("click", exportTomJson);
-    $("deleteTomBtn").addEventListener("click", deleteTom);
+    if ($("tomPdfUpload")) $("tomPdfUpload").addEventListener("change", importTomPdf);
+    if ($("saveTomBtn")) $("saveTomBtn").addEventListener("click", saveTomFromForm);
+    if ($("markTomAffectedBtn")) $("markTomAffectedBtn").addEventListener("click", markTomAsAffected);
+    if ($("focusTomTextBtn") && $("tom_current_text")) $("focusTomTextBtn").addEventListener("click", () => $("tom_current_text").focus());
+    if ($("exportTomCsvBtn")) $("exportTomCsvBtn").addEventListener("click", exportTomCsv);
+    if ($("exportTomJsonBtn")) $("exportTomJsonBtn").addEventListener("click", exportTomJson);
+    if ($("deleteTomBtn")) $("deleteTomBtn").addEventListener("click", deleteTom);
+    if ($("reloadSampleTomBtn")) $("reloadSampleTomBtn").addEventListener("click", reloadSampleTomDisplay);
     $("customerAvvCsvUpload").addEventListener("change", importCustomerAvvCsvFile);
     $("customerAvvPdfUpload").addEventListener("change", importCustomerAvvPdf);
     $("exportCustomerAvvsCsvBtn").addEventListener("click", exportCustomerAvvsCsv);
@@ -1277,26 +1362,17 @@
   }
 
   function normalizeTom(tom) {
-    const text = String(tom?.current_text || "");
-    const hash = String(tom?.file_hash || tom?.hash || "");
-    const sections = Array.isArray(tom?.sections) && tom.sections.length ? tom.sections : parseTomSections(text);
+    const sourceTom = tom || {};
     return {
-      tom_id: String(tom?.tom_id || "TOM-001"),
-      title: String(tom?.title || "Technisch-organisatorische Maßnahmen"),
-      version: String(tom?.version || "V1"),
-      valid_from: String(tom?.valid_from || new Date().toISOString().slice(0, 10)),
-      status: String(tom?.status || "Aktiv"),
-      file_name: String(tom?.file_name || ""),
-      file_type: String(tom?.file_type || ""),
-      file_size: Number(tom?.file_size || 0) || 0,
-      hash,
-      file_hash: hash,
-      source: String(tom?.source || "Lokale TOM"),
-      notes: String(tom?.notes || ""),
-      current_text: text,
-      sections,
-      created_at: String(tom?.created_at || new Date().toISOString()),
-      updated_at: String(tom?.updated_at || new Date().toISOString()),
+      tom_id: sourceTom.tom_id || "TOM-001",
+      title: sourceTom.title || "Technisch-organisatorische Maßnahmen",
+      version: sourceTom.version || "–",
+      valid_from: sourceTom.valid_from || "–",
+      status: sourceTom.status || "Aktiv",
+      source: sourceTom.source || "data/sample_tom.json",
+      notes: sourceTom.notes || "",
+      current_text: sourceTom.current_text || "",
+      sections: Array.isArray(sourceTom.sections) ? sourceTom.sections : [],
     };
   }
 
@@ -1490,20 +1566,7 @@
   }
 
   function renderTom() {
-    const tom = currentTom || {};
-    $("tom_id").value = tom.tom_id || "TOM-001";
-    $("tom_title").value = tom.title || "Technisch-organisatorische Maßnahmen";
-    $("tom_version").value = tom.version || "";
-    $("tom_valid_from").value = tom.valid_from || "";
-    $("tom_file_name").value = tom.file_name || "";
-    $("tom_file_type").value = tom.file_type || "";
-    $("tom_file_size").value = tom.file_size ? `${tom.file_size} Byte` : "";
-    $("tom_hash").value = tom.hash || tom.file_hash || "";
-    $("tom_status").value = tom.status || "Aktiv";
-    $("tomFullTextEditor").value = tom.current_text || "";
-    $("tom_notes").value = tom.notes || "";
-    renderTomCurrentDisplay(tom);
-    renderTomSections(tom.sections || parseTomSections(tom.current_text || ""));
+    if (currentTom) renderTomDisplay(currentTom);
   }
 
   async function importTomPdf(event) {
@@ -1551,7 +1614,6 @@
     downloadFile("current_tom.json", JSON.stringify(tom, null, 2), "application/json");
   }
 
-  const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
 
   function normalizeCustomerAvv(row, index) {
     const customerName = String(row.customer_name || "").trim();
@@ -1701,52 +1763,75 @@
 
   async function initTomDisplayOnly() {
     try {
-      let tom = loadTomFromLocalStorage();
-      if (!tom) {
-        tom = await loadTomFromJsonFile();
-      }
+      cleanupLegacyTomStorage();
+      let tom = await loadTomFromJsonFile();
+
       if (!tom) {
         tom = getFallbackTom();
       }
-      if (tom) {
-        saveTomToLocalStorage(tom);
-        currentTom = tom;
-        renderTomDisplay(tom);
-      } else {
-        renderTomDisplay(null);
-      }
+
+      tom = normalizeTom(tom);
+      console.log("TOM aus JSON geladen:", tom);
+      console.log("TOM-Version:", tom.version);
+      console.log("TOM-Text Länge:", tom.current_text?.length);
+      console.log("TOM-Abschnitte:", tom.sections?.length);
+      saveTomDisplayCache(tom);
+      currentTom = tom;
+      renderTomDisplay(tom);
     } catch (error) {
       console.error("TOM-Anzeige konnte nicht geladen werden:", error);
-      renderTomDisplay(null);
+      const fallbackTom = normalizeTom(getFallbackTom());
+      saveTomDisplayCache(fallbackTom);
+      currentTom = fallbackTom;
+      renderTomDisplay(fallbackTom);
     }
   }
 
   async function loadTomFromJsonFile() {
-    try {
-      const response = await fetch("data/sample_tom.json", { cache: "no-store" });
-      if (!response.ok) return null;
-      return await response.json();
-    } catch (error) {
-      return null;
+    const response = await fetch("data/sample_tom.json", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("sample_tom.json konnte nicht geladen werden");
     }
+    return await response.json();
+  }
+
+  function saveTomDisplayCache(tom) {
+    if (!isLocalStorageAvailable() || !tom) return;
+    localStorage.setItem(TOM_DISPLAY_STORAGE_KEY, JSON.stringify(tom));
   }
 
   function getFallbackTom() {
     return { ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" };
   }
 
-  function saveTomToLocalStorage(tom) {
-    if (!isLocalStorageAvailable() || !tom) return;
-    localStorage.setItem(TOM_STORAGE_KEY, JSON.stringify(tom));
+  function cleanupLegacyTomStorage() {
+    if (!isLocalStorageAvailable()) return;
+    try {
+      const oldTom = JSON.parse(localStorage.getItem(TOM_STORAGE_KEY) || "null");
+      if (oldTom && (!oldTom.sections || oldTom.current_text === "hallo")) {
+        localStorage.removeItem(TOM_STORAGE_KEY);
+      }
+    } catch (error) {
+      localStorage.removeItem(TOM_STORAGE_KEY);
+    }
   }
 
-  function loadTomFromLocalStorage() {
-    if (!isLocalStorageAvailable()) return null;
+  async function reloadSampleTomDisplay() {
     try {
-      const raw = localStorage.getItem(TOM_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      cleanupLegacyTomStorage();
+      if (isLocalStorageAvailable()) localStorage.removeItem(TOM_DISPLAY_STORAGE_KEY);
+      let tom = await loadTomFromJsonFile();
+      if (!tom) tom = getFallbackTom();
+      tom = normalizeTom(tom);
+      saveTomDisplayCache(tom);
+      currentTom = tom;
+      renderTomDisplay(tom);
     } catch (error) {
-      return null;
+      console.error("Beispiel-TOM konnte nicht neu geladen werden:", error);
+      const fallbackTom = normalizeTom(getFallbackTom());
+      saveTomDisplayCache(fallbackTom);
+      currentTom = fallbackTom;
+      renderTomDisplay(fallbackTom);
     }
   }
 
@@ -1754,13 +1839,15 @@
     const element = $("tomCurrentDisplay");
     if (!element) return;
     if (!tom) {
+      element.className = "tom-current-display empty-state";
       element.innerHTML = `
         <strong>Keine TOM verfügbar.</strong>
         <small>data/sample_tom.json konnte nicht geladen werden und es gibt keine TOM im localStorage.</small>
       `;
       return;
     }
-    const sections = Array.isArray(tom.sections) ? tom.sections : [];
+    element.className = "tom-current-display";
+    const sections = Array.isArray(tom.sections) && tom.sections.length ? tom.sections : parseTomSections(tom.current_text || "");
     element.innerHTML = `
       <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
@@ -1808,7 +1895,6 @@
     if (isLocalStorageAvailable()) localStorage.setItem(CUSTOMER_AVVS_STORAGE_KEY, JSON.stringify(customerAvvs));
   }
 
-  const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
 
   function normalizeCustomerAvv(row, index) {
     const customerName = String(row.customer_name || "").trim();
