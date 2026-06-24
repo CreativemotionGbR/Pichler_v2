@@ -1496,7 +1496,7 @@
   }
 
   function renderTom() {
-    if (currentTom) renderTomDisplay(currentTom);
+    renderTomDisplay(currentTom);
   }
 
   async function importTomPdf(event) {
