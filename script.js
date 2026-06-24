@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = "dsgvoChangeHistory.v2";
   const TOM_STORAGE_KEY = "dsgvo.tom.current";
-  const TOM_DISPLAY_STORAGE_KEY = "dsgvo.tom.current.csv";
+  const TOM_DISPLAY_STORAGE_KEY = "dsgvo.tom.current.v2";
   const CUSTOMER_AVVS_STORAGE_KEY = "dsgvo.customerAvvs";
   const REQUIRED_FIELDS = [
     "change_id",
@@ -203,6 +203,22 @@
       email_received_at: "",
     },
   ];
+  const FALLBACK_SAMPLE_TOM = {
+    tom_id: "TOM-001",
+    title: "Technisch-organisatorische Maßnahmen",
+    version: "V5",
+    valid_from: "2024-06-11",
+    status: "Aktiv",
+    source: "Fallback-TOM aus script.js",
+    notes: "Eingebaute Fallback-TOM für lokale Anzeige.",
+    current_text: "Technisch-organisatorische Maßnahmen\nVersion: V5\nGültig ab: 2024-06-11\n\n1. Vertraulichkeit\nDie Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt.\n\nZutrittskontrolle\nBüroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt.\n\nZugangskontrolle\nIT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt.",
+    sections: [
+      { section_id: "tom-vertraulichkeit", title: "1. Vertraulichkeit", text: "Die Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt." },
+      { section_id: "tom-zutrittskontrolle", title: "Zutrittskontrolle", text: "Büroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt." },
+      { section_id: "tom-zugangskontrolle", title: "Zugangskontrolle", text: "IT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt." },
+    ],
+  };
+
   let history = [];
   let currentTom = null;
   let customerAvvs = [];
@@ -266,7 +282,6 @@
     if ($("exportTomCsvBtn")) $("exportTomCsvBtn").addEventListener("click", exportTomCsv);
     if ($("exportTomJsonBtn")) $("exportTomJsonBtn").addEventListener("click", exportTomJson);
     if ($("deleteTomBtn")) $("deleteTomBtn").addEventListener("click", deleteTom);
-    if ($("reloadSampleTomBtn")) $("reloadSampleTomBtn").addEventListener("click", reloadSampleTomDisplay);
     $("customerAvvCsvUpload").addEventListener("change", importCustomerAvvCsvFile);
     $("customerAvvPdfUpload").addEventListener("change", importCustomerAvvPdf);
     $("exportCustomerAvvsCsvBtn").addEventListener("click", exportCustomerAvvsCsv);
@@ -1167,11 +1182,10 @@
       version: sourceTom.version || "–",
       valid_from: sourceTom.valid_from || "–",
       status: sourceTom.status || "Aktiv",
-      source: sourceTom.source || "data/sample_tom.csv",
+      source: sourceTom.source || "data/sample_tom.json",
       notes: sourceTom.notes || "",
       current_text: sourceTom.current_text || "",
       sections: Array.isArray(sourceTom.sections) ? sourceTom.sections : [],
-      updated_at: sourceTom.updated_at || "",
     };
   }
 
@@ -1250,7 +1264,7 @@
   }
 
   function renderTom() {
-    if (currentTom) renderTomDisplay(currentTom);
+    renderTomDisplay(currentTom);
   }
 
   async function importTomPdf(event) {
@@ -1446,16 +1460,29 @@
 
   async function initTomDisplayOnly() {
     try {
-      let tom = null;
+      let tom = await loadTomFromJsonFile();
+      if (!tom) {
+        tom = loadTomFromLocalStorage();
+      }
 
-      try {
-        tom = await loadTomFromCsvFile();
-      } catch (error) {
-        console.warn("sample_tom.csv konnte nicht geladen werden. Nutze Fallback.", error);
+      const cachedTom = loadTomDisplayCache();
+      if (cachedTom?.updated_at) {
+        tom = cachedTom;
       }
 
       if (!tom) {
-        tom = getFallbackTom();
+        tom = cachedTom;
+      }
+      if (tom) {
+        tom = normalizeTom(tom);
+        console.log("Geladene TOM:", tom);
+        console.log("TOM sections:", tom.sections?.length);
+        console.log("TOM current_text length:", tom.current_text?.length);
+        saveTomToLocalStorage(tom);
+        currentTom = tom;
+        renderTomDisplay(tom);
+      } else {
+        renderTomDisplay(null);
       }
 
       tom = normalizeTom(tom);
@@ -1463,38 +1490,20 @@
       saveTomDisplayCache(tom);
       renderTomDisplay(tom);
     } catch (error) {
-      console.error("TOM-Anzeige konnte nicht initialisiert werden:", error);
-      renderTomDisplay(normalizeTom(getFallbackTom()));
+      console.error("TOM-Anzeige konnte nicht geladen werden:", error);
+      const fallbackTom = normalizeTom(getFallbackTom());
+      saveTomDisplayCache(fallbackTom);
+      currentTom = fallbackTom;
+      renderTomDisplay(fallbackTom);
     }
   }
 
-  async function loadTomFromCsvFile() {
-    const response = await fetch("data/sample_tom.csv", { cache: "no-store" });
+  async function loadTomFromJsonFile() {
+    const response = await fetch("data/sample_tom.json", { cache: "no-store" });
     if (!response.ok) {
-      throw new Error("sample_tom.csv konnte nicht geladen werden");
+      throw new Error("sample_tom.json konnte nicht geladen werden");
     }
-    const csvText = await response.text();
-    return parseTomCsvToObject(csvText);
-  }
-
-  function parseTomCsvToObject(csvText) {
-    const rows = parseCsv(csvText);
-    if (!rows || !rows.length) {
-      throw new Error("sample_tom.csv enthält keine TOM-Daten");
-    }
-
-    const row = rows.find((entry) => entry.current_text || entry.title) || rows[0];
-
-    return {
-      tom_id: row.tom_id || "TOM-001",
-      title: row.title || "Technisch-organisatorische Maßnahmen",
-      version: row.version || "V5",
-      valid_from: row.valid_from || "2024-06-11",
-      status: row.status || "Aktiv",
-      source: row.source || "data/sample_tom.csv",
-      current_text: row.current_text || "",
-      sections: parseTomSections(row.current_text || ""),
-    };
+    return await response.json();
   }
 
   function saveTomDisplayCache(tom) {
@@ -1502,13 +1511,62 @@
     localStorage.setItem(TOM_DISPLAY_STORAGE_KEY, JSON.stringify(tom));
   }
 
-  function loadTomDisplayCache() {
-    if (!isLocalStorageAvailable()) return null;
+  function getFallbackTom() {
+    return normalizeTom({ ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" });
+  }
+
+  function cleanupLegacyTomStorage() {
+    if (!isLocalStorageAvailable()) return;
     try {
-      const raw = localStorage.getItem(TOM_DISPLAY_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      const oldTom = JSON.parse(localStorage.getItem(TOM_STORAGE_KEY) || "null");
+      if (oldTom && (!oldTom.sections || oldTom.current_text === "hallo")) {
+        localStorage.removeItem(TOM_STORAGE_KEY);
+      }
     } catch (error) {
-      return null;
+      localStorage.removeItem(TOM_STORAGE_KEY);
+    }
+  }
+
+  async function reloadSampleTomDisplay() {
+    try {
+      const raw = localStorage.getItem(TOM_STORAGE_KEY);
+      return raw ? normalizeTom(JSON.parse(raw)) : null;
+    } catch (error) {
+      console.error("Beispiel-TOM konnte nicht neu geladen werden:", error);
+      const fallbackTom = normalizeTom(getFallbackTom());
+      saveTomDisplayCache(fallbackTom);
+      currentTom = fallbackTom;
+      renderTomDisplay(fallbackTom);
+    }
+  }
+
+  function isUsableTom(tom) {
+    return Boolean(
+      tom &&
+      tom.title &&
+      tom.version &&
+      tom.version !== "–" &&
+      tom.valid_from &&
+      tom.valid_from !== "–" &&
+      tom.status &&
+      tom.current_text &&
+      Array.isArray(tom.sections) &&
+      tom.sections.length > 0
+    );
+  }
+
+  async function reloadSampleTomDisplay() {
+    try {
+      if (isLocalStorageAvailable()) localStorage.removeItem(TOM_STORAGE_KEY);
+      let tom = await loadTomFromJsonFile();
+      if (!tom) tom = getFallbackTom();
+      tom = normalizeTom(tom);
+      saveTomToLocalStorage(tom);
+      currentTom = tom;
+      renderTomDisplay(tom);
+    } catch (error) {
+      console.error("Beispiel-TOM konnte nicht neu geladen werden:", error);
+      renderTomDisplay(null);
     }
   }
 
@@ -1591,10 +1649,7 @@ Auftragsverarbeiter werden sorgfältig ausgewählt und vertraglich geregelt."`;
   function renderTomDisplay(tom) {
     const element = document.getElementById("tomCurrentDisplay");
     if (!element) return;
-
-    const normalizedTom = normalizeTom(tom);
-
-    if (!normalizedTom || !normalizedTom.current_text) {
+    if (!tom) {
       element.className = "tom-current-display empty-state";
       element.innerHTML = `
         <strong>Keine TOM verfügbar.</strong>
@@ -1602,74 +1657,95 @@ Auftragsverarbeiter werden sorgfältig ausgewählt und vertraglich geregelt."`;
       `;
       return;
     }
-
-    currentTom = normalizedTom;
-    const sections = Array.isArray(normalizedTom.sections) && normalizedTom.sections.length
-      ? normalizedTom.sections
-      : parseTomSections(normalizedTom.current_text || "");
-
-    element.className = "tom-current-display";
+    const sections = Array.isArray(tom.sections) && tom.sections.length ? tom.sections : parseTomSections(tom.current_text || "");
     element.innerHTML = `
       <strong>${escapeHtml(normalizedTom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
         <span>Version: ${escapeHtml(normalizedTom.version || "–")}</span>
         <span>Gültig ab: ${escapeHtml(normalizedTom.valid_from || "–")}</span>
-        <span>Status: ${escapeHtml(normalizedTom.status || "Aktiv")}</span>
+        <span>Status: ${escapeHtml(normalizedTom.status || "–")}</span>
         <span>Quelle: ${escapeHtml(normalizedTom.source || "–")}</span>
       </div>
-
       <div class="tom-text-heading-row">
         <h3>Vollständiger TOM-Text</h3>
         <button id="editTomBtn" class="secondary small-button" type="button">TOM bearbeiten</button>
       </div>
-
       <pre class="tom-full-text tom-full-text-preview">${escapeHtml(normalizedTom.current_text || "")}</pre>
-
       <h3>Abschnitte</h3>
       <div class="tom-sections-list">
-        ${
-          sections.length
-            ? sections.map((section) => `
-              <article class="tom-section-card">
-                <h4>${escapeHtml(section.title || "Abschnitt")}</h4>
-                <p>${escapeHtml(section.text || "")}</p>
-              </article>
-            `).join("")
-            : `<div class="empty-state">Keine Abschnitte vorhanden.</div>`
-        }
+        ${sections.length ? sections.map((section) => `
+          <article class="tom-section-card">
+            <h4>${escapeHtml(section.title || "Abschnitt")}</h4>
+            <p>${escapeHtml(section.text || "")}</p>
+          </article>
+        `).join("") : `<div class="empty-state">Keine Abschnitte vorhanden.</div>`}
       </div>
     `;
-
     document.getElementById("editTomBtn")?.addEventListener("click", enterTomEditMode);
   }
 
   function enterTomEditMode() {
     const display = document.getElementById("tomCurrentDisplay");
     if (!display) return;
-
     const tom = getCurrentTomForDisplay();
-
     display.className = "tom-current-display";
     display.innerHTML = `
       <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
         <span>Version: ${escapeHtml(tom.version || "–")}</span>
         <span>Gültig ab: ${escapeHtml(tom.valid_from || "–")}</span>
-        <span>Status: ${escapeHtml(tom.status || "Aktiv")}</span>
+        <span>Status: ${escapeHtml(tom.status || "–")}</span>
         <span>Quelle: ${escapeHtml(tom.source || "–")}</span>
       </div>
-
-      <h3>Vollständigen TOM-Text bearbeiten</h3>
-      <textarea id="tomEditTextarea" class="tom-edit-textarea">${escapeHtml(tom.current_text || "")}</textarea>
-
+      <h3>Vollständiger TOM-Text bearbeiten</h3>
+      <textarea id="tomEditTextarea">${escapeHtml(tom.current_text || "")}</textarea>
       <div class="button-row">
         <button id="saveTomEditBtn" type="button">Änderungen speichern</button>
-        <button id="cancelTomEditBtn" class="secondary" type="button">Abbrechen</button>
+        <button id="cancelTomEditBtn" type="button" class="secondary">Abbrechen</button>
       </div>
     `;
-
     document.getElementById("saveTomEditBtn")?.addEventListener("click", saveTomEdit);
     document.getElementById("cancelTomEditBtn")?.addEventListener("click", cancelTomEditMode);
+  }
+
+  function cancelTomEditMode() {
+    renderTomDisplay(getCurrentTomForDisplay());
+  }
+
+  function saveTomEdit() {
+    try {
+      const textarea = document.getElementById("tomEditTextarea");
+      if (!textarea) return;
+      const text = textarea.value;
+      const tom = {
+        ...getCurrentTomForDisplay(),
+        current_text: text,
+        updated_at: new Date().toISOString(),
+      };
+      tom.sections = typeof parseTomSections === "function" ? parseTomSections(text) : [];
+      const normalizedTom = normalizeTom(tom);
+      updateCurrentTomInLocalStorage(normalizedTom);
+      currentTom = normalizedTom;
+      renderTomDisplay(normalizedTom);
+      showTomEditMessage("TOM wurde lokal im Browser gespeichert.");
+    } catch (error) {
+      console.error("TOM konnte nicht gespeichert werden:", error);
+    }
+  }
+
+  function getCurrentTomForDisplay() {
+    return normalizeTom(currentTom || loadTomDisplayCache() || getFallbackTom());
+  }
+
+  function updateCurrentTomInLocalStorage(tom) {
+    saveTomDisplayCache(normalizeTom(tom));
+  }
+
+  function showTomEditMessage(message) {
+    const element = document.getElementById("tomEditMessage");
+    if (!element) return;
+    element.className = "alert warning";
+    element.textContent = message;
   }
 
   function saveTomEdit() {
