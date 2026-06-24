@@ -229,6 +229,7 @@
     }
 
     history = loadHistory();
+    $("change_id").value = nextChangeId();
     currentTom = loadTom();
     customerAvvs = loadCustomerAvvs();
     renderHistory();
@@ -569,6 +570,7 @@
     renderHistory();
     $("saveBtn").disabled = true;
     renderResult(lastEvaluation, "Änderung wurde lokal im Browser gespeichert.");
+    $("change_id").value = nextChangeId();
   }
 
   function renderResult(result, savedMessage = "") {
@@ -616,11 +618,40 @@
       tbody.innerHTML = `<tr><td colspan="${TABLE_COLUMNS.length}">Noch keine Änderungen gespeichert. Nutze das Formular oder lade Beispieldaten.</td></tr>`;
       return;
     }
-    tbody.innerHTML = history.map((entry) => `
+    tbody.innerHTML = sortedHistoryForDisplay().map((entry) => `
       <tr>
         ${TABLE_COLUMNS.map((column) => `<td>${formatTableValue(column, entry[column])}</td>`).join("")}
       </tr>
     `).join("");
+  }
+
+  function sortedHistoryForDisplay() {
+    return history
+      .map((entry, index) => ({ entry, index }))
+      .sort((a, b) => {
+        const dateDiff = dateSortValue(b.entry.date) - dateSortValue(a.entry.date);
+        if (dateDiff !== 0) return dateDiff;
+        const idDiff = changeIdNumber(b.entry.change_id) - changeIdNumber(a.entry.change_id);
+        if (idDiff !== 0) return idDiff;
+        return b.index - a.index;
+      })
+      .map((item) => item.entry);
+  }
+
+  function dateSortValue(value) {
+    const normalized = normalizeDateInput(value);
+    const parsed = Date.parse(normalized ? `${normalized.slice(0, 10)}T00:00:00` : "");
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  function changeIdNumber(value) {
+    const match = String(value || "").match(/CHG[-\s]*(\d+)/i);
+    return match ? Number(match[1]) : 0;
+  }
+
+  function nextChangeId() {
+    const highest = history.reduce((max, entry) => Math.max(max, changeIdNumber(entry.change_id)), 0);
+    return `CHG-${String(highest + 1).padStart(3, "0")}`;
   }
 
   function formatTableValue(column, value) {
@@ -641,11 +672,13 @@
       if (!response.ok) throw new Error("Beispieldatei konnte nicht geladen werden.");
       const text = await response.text();
       importRows(parseCsv(text), "CSV-Beispieldatei");
+      if (isAutomatic) $("change_id").value = nextChangeId();
     } catch (error) {
       const evaluated = FALLBACK_SAMPLE_CHANGES.map((change) => ({ ...change, ...evaluateChange(change), saved_at: new Date().toISOString() }));
       history = [...history, ...evaluated];
       persistHistory();
       renderHistory();
+      if (isAutomatic) $("change_id").value = nextChangeId();
       showMessage("importErrors", isAutomatic ? "Beim direkten Öffnen per Doppelklick konnte data/sample_changes.csv eventuell nicht geladen werden. Fallback-Beispieldaten aus script.js wurden lokal geladen." : "Browser konnte data/sample_changes.csv nicht direkt laden. Fallback-Beispieldaten aus script.js wurden geladen.", "warning");
     }
   }
@@ -817,6 +850,7 @@
     populateSelect("personal_data", YES_NO_UNKNOWN, "Nein");
     populateSelect("customers_affected", YES_NO_UNKNOWN, "Nein");
     populateSelect("external_parties", YES_NO_UNKNOWN, "Nein");
+    $("change_id").value = nextChangeId();
     $("date").value = formatDateForDisplay(new Date().toISOString().slice(0, 10));
     $("source").value = "Manuelle Eingabe";
     lastEvaluation = null;
