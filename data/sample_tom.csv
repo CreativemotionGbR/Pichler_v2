@@ -1,0 +1,53 @@
+tom_id,title,version,valid_from,status,source,current_text
+TOM-001,Technisch-organisatorische Maßnahmen,V5,2024-06-11,Aktiv,Beispiel-TOM aus data/sample_tom.csv,"Technisch-organisatorische Maßnahmen
+Version: V5
+Gültig ab: 2024-06-11
+
+1. Vertraulichkeit
+Die Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt. Mitarbeitende werden auf Vertraulichkeit verpflichtet und erhalten nur Zugriff auf Daten, die sie zur Aufgabenerfüllung benötigen.
+
+Zutrittskontrolle
+Büroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt. Schlüssel und Zugangsmittel werden kontrolliert ausgegeben und bei Austritt oder Rollenwechsel zurückgenommen. Besucher werden begleitet oder erhalten nur kontrollierten Zugang.
+
+Zugangskontrolle
+IT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt. Nicht mehr benötigte Zugänge werden zeitnah deaktiviert.
+
+Zugriffskontrolle
+Berechtigungen werden nach dem Need-to-know-Prinzip vergeben. Rollen und Rechte werden regelmäßig geprüft. Administrative Zugriffe sind auf berechtigte Personen beschränkt und werden dokumentiert.
+
+Trennungskontrolle
+Daten unterschiedlicher Kunden, Zwecke und Systeme werden logisch getrennt verarbeitet. Test- und Produktivdaten werden getrennt gehalten; produktive personenbezogene Daten werden in Tests nur genutzt, wenn dies erforderlich und zulässig ist.
+
+2. Integrität
+Die Integrität der Daten wird durch kontrollierte Änderungen, Protokollierung, Berechtigungskonzepte und Schutz vor unbefugter Manipulation gesichert.
+
+Weitergabekontrolle
+Übermittlungen personenbezogener Daten erfolgen nur auf definierten Wegen und an berechtigte Empfänger. Externe Dienstleister werden vor Einsatz geprüft und vertraglich eingebunden.
+
+Eingabekontrolle
+Soweit technisch möglich, werden Eingaben, Änderungen und Löschungen nachvollziehbar protokolliert. Verantwortlichkeiten für Datenänderungen sind intern festgelegt.
+
+3. Verfügbarkeit und Belastbarkeit
+Systeme werden durch Datensicherungen, Wiederherstellungsverfahren und Schutzmaßnahmen gegen Ausfall abgesichert. Backups werden regelmäßig erstellt und Wiederherstellungen stichprobenartig geprüft.
+
+Verfügbarkeitskontrolle
+Wichtige Systeme werden gegen Verlust, unbeabsichtigte Zerstörung und technische Störungen geschützt. Wartungen und Updates erfolgen kontrolliert und werden dokumentiert.
+
+4. Verfahren zur regelmäßigen Überprüfung, Bewertung und Evaluierung
+Die Wirksamkeit der technischen und organisatorischen Maßnahmen wird regelmäßig überprüft und bei relevanten Änderungen angepasst. Ergebnisse werden dokumentiert.
+
+Datenschutzmanagement
+Datenschutzrelevante Prozesse, Zuständigkeiten und Dokumentationen werden gepflegt. Änderungen mit Datenschutzbezug werden bewertet und in der Änderungshistorie dokumentiert.
+
+Incident-Response-Management
+Sicherheitsereignisse werden bewertet, dokumentiert und nach einem definierten Verfahren bearbeitet. Bei Bedarf werden Melde- und Informationspflichten geprüft.
+
+Datenschutzfreundliche Voreinstellungen
+Systeme und Prozesse werden soweit möglich datensparsam und mit datenschutzfreundlichen Voreinstellungen betrieben.
+
+Auftragskontrolle
+Auftragsverarbeiter werden sorgfältig ausgewählt, vertraglich geregelt und bei relevanten Änderungen überprüft. AVVs und Unterauftragsverhältnisse werden dokumentiert.
+
+Version
+V1: Erstfassung.
+V5: Aktualisierte Beispiel-TOM für lokale Bearbeitung und TOM-Versionierung."
