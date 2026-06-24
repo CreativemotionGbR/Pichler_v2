@@ -67,6 +67,7 @@
     old_text: "Alter Text",
     new_text: "Neuer Text",
     notes: "Notizen",
+    avv_text: "AVV-Text",
     email_sender: "E-Mail-Absender",
     email_subject: "E-Mail-Betreff",
     email_received_at: "E-Mail-Eingang",
@@ -202,6 +203,62 @@
       email_received_at: "",
     },
   ];
+  const FALLBACK_CUSTOMER_AVVS = [
+    {
+      customer_avv_id: "CAVV-001",
+      customer_id: "KND-001",
+      customer_name: "Musterkunde GmbH",
+      avv_title: "AVV Musterkunde GmbH",
+      avv_version: "1.0",
+      contract_date: "2024-08-30",
+      status: "Aktiv",
+      affected_systems: "SBS Software, Support, Wartung",
+      data_categories: "Kundenstammdaten, Kommunikationsdaten, Abrechnungsdaten",
+      processor_name: "Pichler Training + Support GmbH",
+      source_file: "avv_musterkunde.pdf",
+      file_hash: "demo-hash-001",
+      last_review: "2026-06-24",
+      review_status: "OK",
+      notes: "Demo-AVV für Präsentationszwecke",
+      avv_text: "AVV Musterkunde GmbH\n\nGegenstand der Verarbeitung ist die Betreuung und Wartung von Softwaresystemen. Verarbeitet werden Kundenstammdaten, Kommunikationsdaten und Abrechnungsdaten.",
+    },
+    {
+      customer_avv_id: "CAVV-002",
+      customer_id: "KND-002",
+      customer_name: "Beispielhandel AG",
+      avv_title: "AVV Beispielhandel AG",
+      avv_version: "2.1",
+      contract_date: "2023-11-15",
+      status: "Prüfung offen",
+      affected_systems: "Cloud-Speicher, Ticketsystem",
+      data_categories: "Kontaktpersonen, Supportanfragen, Vertragsdaten",
+      processor_name: "Pichler Training + Support GmbH",
+      source_file: "avv_beispielhandel.pdf",
+      file_hash: "demo-hash-002",
+      last_review: "2026-06-20",
+      review_status: "Prüfen",
+      notes: "Subunternehmerliste muss geprüft werden",
+      avv_text: "AVV Beispielhandel AG\n\nDer Kunde nutzt Support- und Cloud-Dienste. Aufgrund einer Änderung bei Subunternehmern ist eine Prüfung erforderlich.",
+    },
+    {
+      customer_avv_id: "CAVV-003",
+      customer_id: "KND-003",
+      customer_name: "Demo Klinik Service GmbH",
+      avv_title: "AVV Demo Klinik Service GmbH",
+      avv_version: "1.4",
+      contract_date: "2022-05-02",
+      status: "Aktualisierung nötig",
+      affected_systems: "Wartung, Fernzugriff, Backup",
+      data_categories: "Mitarbeiterdaten, Gesundheitsnaher Supportkontext, Logdaten",
+      processor_name: "Pichler Training + Support GmbH",
+      source_file: "avv_demo_klinik.pdf",
+      file_hash: "demo-hash-003",
+      last_review: "2026-06-18",
+      review_status: "High Impact prüfen",
+      notes: "TOM und AVV wegen Fernzugriff prüfen",
+      avv_text: "AVV Demo Klinik Service GmbH\n\nEs bestehen Wartungs- und Supportleistungen mit Fernzugriff. Änderungen an Zugriffskontrollen und Protokollierung können TOM- und AVV-relevant sein.",
+    },
+  ];
   let history = [];
   let currentTom = null;
   let customerAvvs = [];
@@ -244,6 +301,7 @@
     renderHistory();
     renderTom();
     renderCustomerAvvs();
+    loadSampleCustomerAvvsIfEmpty();
     loadWebScanResults();
     bindEvents();
     if (history.length === 0) loadSampleData(true);
@@ -1494,7 +1552,7 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
     $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
     const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
-    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(fieldLabel(c))}</th>`).join("")}</tr>`;
     document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
     document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
     renderCustomerAvvDetail();
@@ -1519,7 +1577,7 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
     if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
     $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(item[column] || "")}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
+    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(fieldLabel(column))}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
     $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
     $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
   }
@@ -1589,6 +1647,24 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     if (isLocalStorageAvailable()) localStorage.setItem(CUSTOMER_AVVS_STORAGE_KEY, JSON.stringify(customerAvvs));
   }
 
+  async function loadSampleCustomerAvvsIfEmpty() {
+    if (customerAvvs && customerAvvs.length > 0) return;
+
+    try {
+      const response = await fetch("data/sample_customer_avvs.csv", { cache: "no-store" });
+      if (!response.ok) throw new Error("sample_customer_avvs.csv konnte nicht geladen werden.");
+
+      const text = await response.text();
+      const rows = parseCsv(text);
+      customerAvvs = rows.map((row, index) => normalizeCustomerAvv(row, index));
+    } catch (error) {
+      console.warn("Demo-Kunden-AVVs konnten nicht aus CSV geladen werden. Nutze Fallback.", error);
+      customerAvvs = FALLBACK_CUSTOMER_AVVS.map((row, index) => normalizeCustomerAvv(row, index));
+    }
+
+    persistCustomerAvvs();
+    renderCustomerAvvs();
+  }
 
   function normalizeCustomerAvv(row, index) {
     const customerName = String(row.customer_name || "").trim();
@@ -1648,7 +1724,7 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
     $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
     const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
-    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(fieldLabel(c))}</th>`).join("")}</tr>`;
     document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
     document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
     renderCustomerAvvDetail();
@@ -1673,7 +1749,7 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
     if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
     $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(item[column] || "")}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
+    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(fieldLabel(column))}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
     $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
     $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
   }
