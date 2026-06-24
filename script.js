@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "dsgvoChangeHistory.v2";
+  const EDITED_TOM_STORAGE_KEY = "dsgvo.tom.edited";
   const CUSTOMER_AVVS_STORAGE_KEY = "dsgvo.customerAvvs";
   const REQUIRED_FIELDS = [
     "change_id",
@@ -217,9 +218,7 @@
     try {
       renderStaticTom();
 
-      document.getElementById("reloadSampleTomBtn")?.addEventListener("click", () => {
-        renderStaticTom();
-      });
+      document.getElementById("reloadSampleTomBtn")?.addEventListener("click", resetEditedTom);
     } catch (error) {
       console.error("Statische TOM konnte nicht angezeigt werden:", error);
     }
@@ -1261,12 +1260,33 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     });
   }
 
+  function getTomForDisplay() {
+    if (isLocalStorageAvailable()) {
+      try {
+        const raw = localStorage.getItem(EDITED_TOM_STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (error) {
+        console.warn("Bearbeitete TOM konnte nicht geladen werden:", error);
+      }
+    }
+
+    return {
+      ...STATIC_SAMPLE_TOM,
+      sections: parseTomSections(STATIC_SAMPLE_TOM.current_text),
+    };
+  }
+
+  function saveEditedTom(tom) {
+    if (!isLocalStorageAvailable()) return;
+    localStorage.setItem(EDITED_TOM_STORAGE_KEY, JSON.stringify(tom));
+  }
+
   function renderStaticTom() {
     const element = document.getElementById("tomCurrentDisplay");
     if (!element) return;
 
-    const tom = STATIC_SAMPLE_TOM;
-    const sections = parseTomSections(tom.current_text);
+    const tom = getTomForDisplay();
+    const sections = Array.isArray(tom.sections) && tom.sections.length ? tom.sections : parseTomSections(tom.current_text);
 
     element.className = "tom-current-display";
     element.innerHTML = `
@@ -1276,11 +1296,14 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
         <span>Version: ${escapeHtml(tom.version)}</span>
         <span>Gültig ab: ${escapeHtml(tom.valid_from)}</span>
         <span>Status: ${escapeHtml(tom.status)}</span>
-        <span>Quelle: ${escapeHtml(tom.source)}</span>
+        <span>Quelle: ${escapeHtml(tom.source || "Lokale TOM")}</span>
       </div>
 
-      <h3>Vollständiger TOM-Text</h3>
-      <pre class="tom-full-text tom-full-text-preview">${escapeHtml(tom.current_text)}</pre>
+      <div class="tom-text-heading-row">
+        <h3>Vollständiger TOM-Text</h3>
+        <button id="editTomBtn" class="secondary small-button" type="button">TOM bearbeiten</button>
+      </div>
+      <pre class="tom-full-text tom-full-text-preview">${escapeHtml(tom.current_text || "")}</pre>
 
       <h3>Abschnitte</h3>
       <div class="tom-sections-list">
@@ -1296,6 +1319,78 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
         }
       </div>
     `;
+
+    document.getElementById("editTomBtn")?.addEventListener("click", enterTomEditMode);
+  }
+
+  function enterTomEditMode() {
+    const element = document.getElementById("tomCurrentDisplay");
+    if (!element) return;
+
+    const tom = getTomForDisplay();
+
+    element.className = "tom-current-display";
+    element.innerHTML = `
+      <strong>${escapeHtml(tom.title)}</strong>
+
+      <div class="tom-meta-list">
+        <span>Version: ${escapeHtml(tom.version)}</span>
+        <span>Gültig ab: ${escapeHtml(tom.valid_from)}</span>
+        <span>Status: ${escapeHtml(tom.status)}</span>
+        <span>Quelle: ${escapeHtml(tom.source || "Lokale TOM")}</span>
+      </div>
+
+      <h3>Vollständigen TOM-Text bearbeiten</h3>
+      <textarea id="tomEditTextarea" class="tom-edit-textarea">${escapeHtml(tom.current_text || "")}</textarea>
+
+      <div class="button-row">
+        <button id="saveTomEditBtn" type="button">Änderungen speichern</button>
+        <button id="cancelTomEditBtn" type="button" class="secondary">Abbrechen</button>
+      </div>
+    `;
+
+    document.getElementById("saveTomEditBtn")?.addEventListener("click", saveTomEdit);
+    document.getElementById("cancelTomEditBtn")?.addEventListener("click", cancelTomEditMode);
+  }
+
+  function saveTomEdit() {
+    const textarea = document.getElementById("tomEditTextarea");
+    if (!textarea) return;
+
+    const oldTom = getTomForDisplay();
+    const newText = textarea.value;
+
+    const updatedTom = {
+      ...oldTom,
+      current_text: newText,
+      sections: parseTomSections(newText),
+      source: "Lokal bearbeitete TOM im Browser",
+      updated_at: new Date().toISOString(),
+    };
+
+    saveEditedTom(updatedTom);
+    renderStaticTom();
+    showTomEditMessage("TOM wurde lokal im Browser gespeichert.");
+  }
+
+  function cancelTomEditMode() {
+    renderStaticTom();
+  }
+
+  function resetEditedTom() {
+    if (isLocalStorageAvailable()) {
+      localStorage.removeItem(EDITED_TOM_STORAGE_KEY);
+    }
+
+    renderStaticTom();
+    showTomEditMessage("Beispiel-TOM wurde neu geladen. Bearbeitete lokale TOM wurde zurückgesetzt.");
+  }
+
+  function showTomEditMessage(message) {
+    const element = document.getElementById("tomEditMessage");
+    if (!element) return;
+    element.className = "alert warning";
+    element.textContent = message;
   }
 
 
