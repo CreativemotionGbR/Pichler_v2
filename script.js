@@ -215,6 +215,13 @@
   const form = $("changeForm");
 
   document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", () => {
+    try {
+      initTomDisplayOnly();
+    } catch (error) {
+      console.error("TOM-Anzeige konnte nicht geladen werden:", error);
+    }
+  });
 
   async function init() {
     populateSelect("change_type", KNOWN_CHANGE_TYPES);
@@ -1542,6 +1549,263 @@
   function exportTomJson() {
     const tom = normalizeTom(currentTom || getTomFromForm());
     downloadFile("current_tom.json", JSON.stringify(tom, null, 2), "application/json");
+  }
+
+  const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
+
+  function normalizeCustomerAvv(row, index) {
+    const customerName = String(row.customer_name || "").trim();
+    if (!customerName) throw new Error(`Zeile ${index + 2}: customer_name fehlt.`);
+    return {
+      customer_avv_id: String(row.customer_avv_id || `CAVV-${Date.now()}-${index + 1}`).trim(),
+      customer_id: String(row.customer_id || "").trim(),
+      customer_name: customerName,
+      avv_title: String(row.avv_title || `AVV ${customerName}`).trim(),
+      avv_version: String(row.avv_version || "").trim(),
+      contract_date: String(row.contract_date || "").trim(),
+      status: String(row.status || "Aktiv").trim(),
+      affected_systems: String(row.affected_systems || "").trim(),
+      data_categories: String(row.data_categories || "").trim(),
+      processor_name: String(row.processor_name || "").trim(),
+      source_file: String(row.source_file || "").trim(),
+      file_hash: String(row.file_hash || "").trim(),
+      file_size: Number(row.file_size || 0) || 0,
+      file_type: String(row.file_type || "").trim(),
+      last_review: String(row.last_review || "").trim(),
+      review_status: String(row.review_status || "OK").trim(),
+      notes: String(row.notes || "").trim(),
+      avv_text: String(row.avv_text || "").trim(),
+    };
+  }
+
+  function importCustomerAvvCsvFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const errors = [];
+      const imported = [];
+      parseCsv(String(reader.result || "")).forEach((row, index) => {
+        try { imported.push(normalizeCustomerAvv(row, index)); } catch (error) { errors.push(error.message); }
+      });
+      imported.forEach((entry) => {
+        const existing = customerAvvs.findIndex((item) => item.customer_avv_id === entry.customer_avv_id);
+        if (existing >= 0) customerAvvs[existing] = { ...customerAvvs[existing], ...entry };
+        else customerAvvs.push(entry);
+      });
+      persistCustomerAvvs();
+      renderCustomerAvvs();
+      showMessage("customerAvvMessage", `${imported.length} Kunden-AVV-Datensätze importiert.${errors.length ? " Fehler: " + errors.map(escapeHtml).join(" | ") : ""}`, errors.length ? "danger" : "warning");
+      event.target.value = "";
+    };
+    reader.onerror = () => showMessage("customerAvvMessage", "Kunden-AVV-CSV konnte nicht gelesen werden.", "danger");
+    reader.readAsText(file, "utf-8");
+  }
+
+  function renderCustomerAvvs() {
+    const query = ($("customerAvvSearch").value || "").toLowerCase();
+    const status = $("customerAvvStatusFilter").value;
+    const filtered = customerAvvs.filter((item) => (!status || item.status === status) && Object.values(item).join(" ").toLowerCase().includes(query));
+    $("avvCountTotal").textContent = customerAvvs.length;
+    $("avvCountOpen").textContent = customerAvvs.filter((item) => item.status === "Prüfung offen").length;
+    $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
+    $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
+    const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
+    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+    document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
+    document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
+    renderCustomerAvvDetail();
+  }
+
+  function formatCustomerAvvCell(column, value) {
+    if (column === "status" || column === "review_status") return `<span class="status-badge ${statusClass(value)}">${escapeHtml(value || "")}</span>`;
+    return escapeHtml(value || "");
+  }
+
+  function statusClass(value) {
+    const text = String(value || "").toLowerCase();
+    if (text.includes("aktiv") || text === "ok") return "status-active";
+    if (text.includes("high") || text.includes("aktualisierung")) return "status-high";
+    if (text.includes("prüf") || text.includes("tom")) return "status-open";
+    return "";
+  }
+
+  function selectCustomerAvv(id) { selectedCustomerAvvId = id; renderCustomerAvvDetail(); }
+
+  function renderCustomerAvvDetail() {
+    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
+    if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
+    $("customerAvvDetail").className = "";
+    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(column)}</strong>${escapeHtml(item[column] || "")}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
+    $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
+    $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
+  }
+
+  async function importCustomerAvvPdf(event) {
+    const file = event.target.files[0];
+    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
+    if (!file || !item) { showMessage("customerAvvMessage", "Bitte zuerst einen Kunden-AVV-Datensatz auswählen und dann die PDF importieren.", "danger"); return; }
+    item.source_file = file.name;
+    item.file_type = file.type || "application/pdf";
+    item.file_size = file.size;
+    item.file_hash = await calculateSha256(file);
+    persistCustomerAvvs();
+    renderCustomerAvvs();
+    showMessage("customerAvvMessage", "AVV-PDF wurde lokal registriert. Metadaten und Hash wurden gespeichert.", "warning");
+    event.target.value = "";
+  }
+
+  function exportCustomerAvvsCsv() { downloadFile("kunden_avvs_export.csv", toCsv(customerAvvs, CUSTOMER_AVV_COLUMNS), "text/csv;charset=utf-8"); }
+
+  function renderAffectedReviewBox(result) {
+    const affected = Array.isArray(result.affected_documents) ? result.affected_documents : [];
+    const parts = [];
+    if (affected.includes("AVV")) {
+      const relevant = customerAvvs.filter((item) => ["Aktiv", "Prüfung offen"].includes(item.status));
+      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs als prüfpflichtig markieren</button></div>`);
+    }
+    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM als prüfpflichtig markieren</button></div>`);
+    return parts.length ? `<div class="review-actions">${parts.join("")}</div>` : "";
+  }
+
+  function markRelevantCustomerAvvs(highImpact) {
+    customerAvvs = customerAvvs.map((item) => ["Aktiv", "Prüfung offen"].includes(item.status) ? { ...item, status: "Prüfung offen", review_status: highImpact ? "High Impact prüfen" : "Prüfen" } : item);
+    persistCustomerAvvs();
+    renderCustomerAvvs();
+    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden als prüfpflichtig markiert.");
+  }
+
+  async function calculateSha256(file) {
+    if (typeof crypto === "undefined" || !crypto.subtle) return "SHA-256 im aktuellen Browser nicht verfügbar";
+    const buffer = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  function setPdfPreview(file, frameId, fallbackId, type) {
+    if (type === "tom" && tomPreviewUrl) URL.revokeObjectURL(tomPreviewUrl);
+    if (type === "avv" && avvPreviewUrl) URL.revokeObjectURL(avvPreviewUrl);
+    const url = URL.createObjectURL(file);
+    if (type === "tom") tomPreviewUrl = url; else avvPreviewUrl = url;
+    $(frameId).src = url;
+    $(frameId).classList.remove("hidden");
+    $(fallbackId).classList.add("hidden");
+  }
+
+
+  function loadTom() {
+    if (!isLocalStorageAvailable()) return null;
+    try { return JSON.parse(localStorage.getItem(TOM_STORAGE_KEY) || "null"); } catch { return null; }
+  }
+
+
+  async function initTomDisplayOnly() {
+    try {
+      let tom = loadTomFromLocalStorage();
+      if (!tom) {
+        tom = await loadTomFromJsonFile();
+      }
+      if (!tom) {
+        tom = getFallbackTom();
+      }
+      if (tom) {
+        saveTomToLocalStorage(tom);
+        currentTom = tom;
+        renderTomDisplay(tom);
+      } else {
+        renderTomDisplay(null);
+      }
+    } catch (error) {
+      console.error("TOM-Anzeige konnte nicht geladen werden:", error);
+      renderTomDisplay(null);
+    }
+  }
+
+  async function loadTomFromJsonFile() {
+    try {
+      const response = await fetch("data/sample_tom.json", { cache: "no-store" });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getFallbackTom() {
+    return { ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" };
+  }
+
+  function saveTomToLocalStorage(tom) {
+    if (!isLocalStorageAvailable() || !tom) return;
+    localStorage.setItem(TOM_STORAGE_KEY, JSON.stringify(tom));
+  }
+
+  function loadTomFromLocalStorage() {
+    if (!isLocalStorageAvailable()) return null;
+    try {
+      const raw = localStorage.getItem(TOM_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function renderTomDisplay(tom) {
+    const element = $("tomCurrentDisplay");
+    if (!element) return;
+    if (!tom) {
+      element.innerHTML = `
+        <strong>Keine TOM verfügbar.</strong>
+        <small>data/sample_tom.json konnte nicht geladen werden und es gibt keine TOM im localStorage.</small>
+      `;
+      return;
+    }
+    const sections = Array.isArray(tom.sections) ? tom.sections : [];
+    element.innerHTML = `
+      <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
+      <div class="tom-meta-list">
+        <span>Version: ${escapeHtml(tom.version || "–")}</span>
+        <span>Gültig ab: ${escapeHtml(tom.valid_from || "–")}</span>
+        <span>Status: ${escapeHtml(tom.status || "–")}</span>
+        <span>Quelle: ${escapeHtml(tom.source || "–")}</span>
+      </div>
+      <h3>Vollständiger TOM-Text</h3>
+      <pre class="tom-full-text-preview">${escapeHtml(tom.current_text || "")}</pre>
+      <h3>Abschnitte</h3>
+      <div class="tom-sections-list">
+        ${sections.length ? sections.map((section) => `
+          <article class="tom-section-card">
+            <h4>${escapeHtml(section.title || "Abschnitt")}</h4>
+            <p>${escapeHtml(section.text || "")}</p>
+          </article>
+        `).join("") : `<div class="empty-state">Keine Abschnitte vorhanden.</div>`}
+      </div>
+    `;
+  }
+
+
+  function loadTomVersions() {
+    if (!isLocalStorageAvailable()) return [];
+    try { return JSON.parse(localStorage.getItem(TOM_VERSION_STORAGE_KEY) || "[]"); } catch { return []; }
+  }
+
+  function persistTomVersions(versions) {
+    if (isLocalStorageAvailable()) localStorage.setItem(TOM_VERSION_STORAGE_KEY, JSON.stringify(versions));
+  }
+
+  function persistTom() {
+    if (!isLocalStorageAvailable()) return;
+    if (currentTom) localStorage.setItem(TOM_STORAGE_KEY, JSON.stringify(currentTom));
+    else localStorage.removeItem(TOM_STORAGE_KEY);
+  }
+
+  function loadCustomerAvvs() {
+    if (!isLocalStorageAvailable()) return [];
+    try { return JSON.parse(localStorage.getItem(CUSTOMER_AVVS_STORAGE_KEY) || "[]"); } catch { return []; }
+  }
+
+  function persistCustomerAvvs() {
+    if (isLocalStorageAvailable()) localStorage.setItem(CUSTOMER_AVVS_STORAGE_KEY, JSON.stringify(customerAvvs));
   }
 
   const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
