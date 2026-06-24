@@ -1450,6 +1450,11 @@
 
 
   async function initTomDisplayOnly() {
+    const fallbackTom = normalizeTom(getFallbackTom());
+    currentTom = fallbackTom;
+    saveTomDisplayCache(fallbackTom);
+    renderTomDisplay(fallbackTom);
+
     try {
       let tom = await loadTomFromJsonFile();
       if (!tom) {
@@ -1701,10 +1706,14 @@ Auftragsverarbeiter werden sorgfältig ausgewählt und vertraglich geregelt."`;
     display.innerHTML = `
       <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
-        <span>Version: ${escapeHtml(tom.version || "–")}</span>
-        <span>Gültig ab: ${escapeHtml(tom.valid_from || "–")}</span>
-        <span>Status: ${escapeHtml(tom.status || "–")}</span>
-        <span>Quelle: ${escapeHtml(tom.source || "–")}</span>
+        <span>Version: ${escapeHtml(normalizedTom.version)}</span>
+        <span>Gültig ab: ${escapeHtml(normalizedTom.valid_from)}</span>
+        <span>Status: ${escapeHtml(normalizedTom.status)}</span>
+        <span>Quelle: ${escapeHtml(normalizedTom.source)}</span>
+      </div>
+
+      <div class="tom-text-heading-row">
+        <h3>Vollständiger TOM-Text</h3>
       </div>
       <h3>Vollständiger TOM-Text bearbeiten</h3>
       <textarea id="tomEditTextarea">${escapeHtml(tom.current_text || "")}</textarea>
