@@ -526,31 +526,3 @@ footer {
   line-height: 1.5;
   color: var(--muted);
 }
-
-.small-button {
-  padding: 0.5rem 0.8rem;
-  font-size: 0.9rem;
-}
-
-.tom-text-heading-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.tom-full-text {
-  white-space: pre-wrap;
-}
-
-
-.tom-full-text {
-  text-align: left;
-}
-
-
-.tom-full-text-preview {
-  max-height: 520px;
-  overflow: auto;
-}
