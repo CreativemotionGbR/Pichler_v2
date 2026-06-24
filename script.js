@@ -1570,6 +1570,82 @@
     }
   }
 
+  function getFallbackTomCsv() {
+    return `tom_id,title,version,valid_from,status,source,current_text
+TOM-001,"Technisch-organisatorische Maßnahmen","V5","2024-06-11","Aktiv","Fallback-TOM aus script.js","Technisch-organisatorische Maßnahmen
+Version: V5
+Gültig ab: 2024-06-11
+
+1. Vertraulichkeit
+Die Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt.
+
+Zutrittskontrolle
+Büroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt.
+
+Zugangskontrolle
+IT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und Mehr-Faktor-Authentifizierung geschützt.
+
+Zugriffskontrolle
+Berechtigungen werden nach dem Need-to-know-Prinzip vergeben.
+
+2. Integrität
+Die Integrität der Daten wird durch kontrollierte Änderungen, Protokollierung und Berechtigungskonzepte gesichert.
+
+3. Verfügbarkeit und Belastbarkeit
+Systeme werden durch Datensicherungen und Wiederherstellungsverfahren abgesichert.
+
+4. Verfahren zur regelmäßigen Überprüfung, Bewertung und Evaluierung
+Die Wirksamkeit der TOM wird regelmäßig überprüft.
+
+Auftragskontrolle
+Auftragsverarbeiter werden sorgfältig ausgewählt und vertraglich geregelt."`;
+  }
+
+  function getFallbackTom() {
+    try {
+      return parseTomCsvToObject(getFallbackTomCsv());
+    } catch (error) {
+      const text = "Technisch-organisatorische Maßnahmen\nVersion: V5\nGültig ab: 2024-06-11\n\n1. Vertraulichkeit\nDie Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt.";
+      return {
+        tom_id: "TOM-001",
+        title: "Technisch-organisatorische Maßnahmen",
+        version: "V5",
+        valid_from: "2024-06-11",
+        status: "Aktiv",
+        source: "Fallback-TOM aus script.js",
+        current_text: text,
+        sections: parseTomSections(text),
+      };
+    }
+  }
+
+  function cleanupLegacyTomStorage() {
+    if (!isLocalStorageAvailable()) return;
+    try {
+      const oldTom = JSON.parse(localStorage.getItem(TOM_STORAGE_KEY) || "null");
+      if (oldTom && (!oldTom.sections || oldTom.current_text === "hallo")) {
+        localStorage.removeItem(TOM_STORAGE_KEY);
+      }
+    } catch (error) {
+      localStorage.removeItem(TOM_STORAGE_KEY);
+    }
+  }
+
+  async function reloadSampleTomDisplay() {
+    try {
+      if (isLocalStorageAvailable()) localStorage.removeItem(TOM_DISPLAY_STORAGE_KEY);
+      const tom = normalizeTom(await loadTomFromCsvFile());
+      currentTom = tom;
+      saveTomDisplayCache(tom);
+      renderTomDisplay(tom);
+    } catch (error) {
+      const fallbackTom = normalizeTom(getFallbackTom());
+      currentTom = fallbackTom;
+      saveTomDisplayCache(fallbackTom);
+      renderTomDisplay(fallbackTom);
+    }
+  }
+
   function renderTomDisplay(tom) {
     const element = document.getElementById("tomCurrentDisplay");
     if (!element) return;
@@ -1577,7 +1653,7 @@
       element.className = "tom-current-display empty-state";
       element.innerHTML = `
         <strong>Keine TOM verfügbar.</strong>
-        <small>data/sample_tom.json konnte nicht geladen werden und es gibt keine TOM im localStorage.</small>
+        <small>data/sample_tom.csv konnte nicht geladen werden und es gibt keine TOM im localStorage.</small>
       `;
       return;
     }
