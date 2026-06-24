@@ -1806,15 +1806,18 @@
     }
     const sections = Array.isArray(tom.sections) && tom.sections.length ? tom.sections : parseTomSections(tom.current_text || "");
     element.innerHTML = `
-      <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
+      <strong>${escapeHtml(normalizedTom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
-        <span>Version: ${escapeHtml(tom.version || "–")}</span>
-        <span>Gültig ab: ${escapeHtml(tom.valid_from || "–")}</span>
-        <span>Status: ${escapeHtml(tom.status || "–")}</span>
-        <span>Quelle: ${escapeHtml(tom.source || "–")}</span>
+        <span>Version: ${escapeHtml(normalizedTom.version || "–")}</span>
+        <span>Gültig ab: ${escapeHtml(normalizedTom.valid_from || "–")}</span>
+        <span>Status: ${escapeHtml(normalizedTom.status || "–")}</span>
+        <span>Quelle: ${escapeHtml(normalizedTom.source || "–")}</span>
       </div>
-      <h3>Vollständiger TOM-Text</h3>
-      <pre class="tom-full-text-preview">${escapeHtml(tom.current_text || "")}</pre>
+      <div class="tom-text-heading-row">
+        <h3>Vollständiger TOM-Text</h3>
+        <button id="editTomBtn" class="secondary small-button" type="button">TOM bearbeiten</button>
+      </div>
+      <pre class="tom-full-text tom-full-text-preview">${escapeHtml(normalizedTom.current_text || "")}</pre>
       <h3>Abschnitte</h3>
       <div class="tom-sections-list">
         ${sections.length ? sections.map((section) => `
@@ -1825,6 +1828,71 @@
         `).join("") : `<div class="empty-state">Keine Abschnitte vorhanden.</div>`}
       </div>
     `;
+    document.getElementById("editTomBtn")?.addEventListener("click", enterTomEditMode);
+  }
+
+  function enterTomEditMode() {
+    const display = document.getElementById("tomCurrentDisplay");
+    if (!display) return;
+    const tom = getCurrentTomForDisplay();
+    display.className = "tom-current-display";
+    display.innerHTML = `
+      <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
+      <div class="tom-meta-list">
+        <span>Version: ${escapeHtml(tom.version || "–")}</span>
+        <span>Gültig ab: ${escapeHtml(tom.valid_from || "–")}</span>
+        <span>Status: ${escapeHtml(tom.status || "–")}</span>
+        <span>Quelle: ${escapeHtml(tom.source || "–")}</span>
+      </div>
+      <h3>Vollständiger TOM-Text bearbeiten</h3>
+      <textarea id="tomEditTextarea">${escapeHtml(tom.current_text || "")}</textarea>
+      <div class="button-row">
+        <button id="saveTomEditBtn" type="button">Änderungen speichern</button>
+        <button id="cancelTomEditBtn" type="button" class="secondary">Abbrechen</button>
+      </div>
+    `;
+    document.getElementById("saveTomEditBtn")?.addEventListener("click", saveTomEdit);
+    document.getElementById("cancelTomEditBtn")?.addEventListener("click", cancelTomEditMode);
+  }
+
+  function cancelTomEditMode() {
+    renderTomDisplay(getCurrentTomForDisplay());
+  }
+
+  function saveTomEdit() {
+    try {
+      const textarea = document.getElementById("tomEditTextarea");
+      if (!textarea) return;
+      const text = textarea.value;
+      const tom = {
+        ...getCurrentTomForDisplay(),
+        current_text: text,
+        updated_at: new Date().toISOString(),
+      };
+      tom.sections = typeof parseTomSections === "function" ? parseTomSections(text) : [];
+      const normalizedTom = normalizeTom(tom);
+      updateCurrentTomInLocalStorage(normalizedTom);
+      currentTom = normalizedTom;
+      renderTomDisplay(normalizedTom);
+      showTomEditMessage("TOM wurde lokal im Browser gespeichert.");
+    } catch (error) {
+      console.error("TOM konnte nicht gespeichert werden:", error);
+    }
+  }
+
+  function getCurrentTomForDisplay() {
+    return normalizeTom(currentTom || loadTomDisplayCache() || getFallbackTom());
+  }
+
+  function updateCurrentTomInLocalStorage(tom) {
+    saveTomDisplayCache(normalizeTom(tom));
+  }
+
+  function showTomEditMessage(message) {
+    const element = document.getElementById("tomEditMessage");
+    if (!element) return;
+    element.className = "alert warning";
+    element.textContent = message;
   }
 
 
