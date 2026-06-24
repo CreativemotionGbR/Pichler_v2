@@ -202,6 +202,21 @@
       email_received_at: "",
     },
   ];
+  const FALLBACK_SAMPLE_TOM = {
+    tom_id: "TOM-001",
+    title: "Technisch-organisatorische Maßnahmen",
+    version: "V5",
+    valid_from: "2024-06-11",
+    status: "Aktiv",
+    source: "Fallback-TOM aus script.js",
+    notes: "Eingebaute Fallback-TOM für lokale Anzeige.",
+    current_text: "Technisch-organisatorische Maßnahmen\nVersion: V5\nGültig ab: 2024-06-11\n\n1. Vertraulichkeit\nDie Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt.\n\nZutrittskontrolle\nBüroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt.\n\nZugangskontrolle\nIT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt.",
+    sections: [
+      { section_id: "tom-vertraulichkeit", title: "1. Vertraulichkeit", text: "Die Vertraulichkeit personenbezogener Daten wird durch organisatorische und technische Maßnahmen geschützt." },
+      { section_id: "tom-zutrittskontrolle", title: "Zutrittskontrolle", text: "Büroräume und Arbeitsbereiche sind gegen unbefugten Zutritt geschützt." },
+      { section_id: "tom-zugangskontrolle", title: "Zugangskontrolle", text: "IT-Systeme sind durch individuelle Benutzerkonten, sichere Passwörter und, soweit verfügbar, Mehr-Faktor-Authentifizierung geschützt." },
+    ],
+  };
 
   let history = [];
   let currentTom = null;
@@ -238,7 +253,7 @@
 
     history = loadHistory();
     $("change_id").value = nextChangeId();
-    currentTom = loadTom();
+    currentTom = null;
     customerAvvs = loadCustomerAvvs();
     renderHistory();
     renderTom();
@@ -259,13 +274,13 @@
     $("clearDataBtn").addEventListener("click", clearLocalData);
     $("applyEmailTextBtn").addEventListener("click", applyEmailText);
     $("emlUpload").addEventListener("change", importEmlFile);
-    $("tomPdfUpload").addEventListener("change", importTomPdf);
-    $("saveTomBtn").addEventListener("click", saveTomFromForm);
-    $("markTomAffectedBtn").addEventListener("click", markTomAsAffected);
-    $("focusTomTextBtn").addEventListener("click", () => $("tom_current_text").focus());
-    $("exportTomCsvBtn").addEventListener("click", exportTomCsv);
-    $("exportTomJsonBtn").addEventListener("click", exportTomJson);
-    $("deleteTomBtn").addEventListener("click", deleteTom);
+    if ($("tomPdfUpload")) $("tomPdfUpload").addEventListener("change", importTomPdf);
+    if ($("saveTomBtn")) $("saveTomBtn").addEventListener("click", saveTomFromForm);
+    if ($("markTomAffectedBtn")) $("markTomAffectedBtn").addEventListener("click", markTomAsAffected);
+    if ($("focusTomTextBtn") && $("tom_current_text")) $("focusTomTextBtn").addEventListener("click", () => $("tom_current_text").focus());
+    if ($("exportTomCsvBtn")) $("exportTomCsvBtn").addEventListener("click", exportTomCsv);
+    if ($("exportTomJsonBtn")) $("exportTomJsonBtn").addEventListener("click", exportTomJson);
+    if ($("deleteTomBtn")) $("deleteTomBtn").addEventListener("click", deleteTom);
     $("customerAvvCsvUpload").addEventListener("change", importCustomerAvvCsvFile);
     $("customerAvvPdfUpload").addEventListener("change", importCustomerAvvPdf);
     $("exportCustomerAvvsCsvBtn").addEventListener("click", exportCustomerAvvsCsv);
@@ -1277,26 +1292,17 @@
   }
 
   function normalizeTom(tom) {
-    const text = String(tom?.current_text || "");
-    const hash = String(tom?.file_hash || tom?.hash || "");
-    const sections = Array.isArray(tom?.sections) && tom.sections.length ? tom.sections : parseTomSections(text);
+    const sourceTom = tom || {};
     return {
-      tom_id: String(tom?.tom_id || "TOM-001"),
-      title: String(tom?.title || "Technisch-organisatorische Maßnahmen"),
-      version: String(tom?.version || "V1"),
-      valid_from: String(tom?.valid_from || new Date().toISOString().slice(0, 10)),
-      status: String(tom?.status || "Aktiv"),
-      file_name: String(tom?.file_name || ""),
-      file_type: String(tom?.file_type || ""),
-      file_size: Number(tom?.file_size || 0) || 0,
-      hash,
-      file_hash: hash,
-      source: String(tom?.source || "Lokale TOM"),
-      notes: String(tom?.notes || ""),
-      current_text: text,
-      sections,
-      created_at: String(tom?.created_at || new Date().toISOString()),
-      updated_at: String(tom?.updated_at || new Date().toISOString()),
+      tom_id: sourceTom.tom_id || "TOM-001",
+      title: sourceTom.title || "Technisch-organisatorische Maßnahmen",
+      version: sourceTom.version || "–",
+      valid_from: sourceTom.valid_from || "–",
+      status: sourceTom.status || "Aktiv",
+      source: sourceTom.source || "data/sample_tom.json",
+      notes: sourceTom.notes || "",
+      current_text: sourceTom.current_text || "",
+      sections: Array.isArray(sourceTom.sections) ? sourceTom.sections : [],
     };
   }
 
@@ -1490,20 +1496,7 @@
   }
 
   function renderTom() {
-    const tom = currentTom || {};
-    $("tom_id").value = tom.tom_id || "TOM-001";
-    $("tom_title").value = tom.title || "Technisch-organisatorische Maßnahmen";
-    $("tom_version").value = tom.version || "";
-    $("tom_valid_from").value = tom.valid_from || "";
-    $("tom_file_name").value = tom.file_name || "";
-    $("tom_file_type").value = tom.file_type || "";
-    $("tom_file_size").value = tom.file_size ? `${tom.file_size} Byte` : "";
-    $("tom_hash").value = tom.hash || tom.file_hash || "";
-    $("tom_status").value = tom.status || "Aktiv";
-    $("tomFullTextEditor").value = tom.current_text || "";
-    $("tom_notes").value = tom.notes || "";
-    renderTomCurrentDisplay(tom);
-    renderTomSections(tom.sections || parseTomSections(tom.current_text || ""));
+    if (currentTom) renderTomDisplay(currentTom);
   }
 
   async function importTomPdf(event) {
@@ -1551,7 +1544,6 @@
     downloadFile("current_tom.json", JSON.stringify(tom, null, 2), "application/json");
   }
 
-  const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
 
   function normalizeCustomerAvv(row, index) {
     const customerName = String(row.customer_name || "").trim();
@@ -1701,14 +1693,18 @@
 
   async function initTomDisplayOnly() {
     try {
-      let tom = loadTomFromLocalStorage();
+      let tom = await loadTomFromJsonFile();
       if (!tom) {
-        tom = await loadTomFromJsonFile();
+        tom = loadTomFromLocalStorage();
       }
       if (!tom) {
         tom = getFallbackTom();
       }
       if (tom) {
+        tom = normalizeTom(tom);
+        console.log("Geladene TOM:", tom);
+        console.log("TOM sections:", tom.sections?.length);
+        console.log("TOM current_text length:", tom.current_text?.length);
         saveTomToLocalStorage(tom);
         currentTom = tom;
         renderTomDisplay(tom);
@@ -1732,7 +1728,7 @@
   }
 
   function getFallbackTom() {
-    return { ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" };
+    return normalizeTom({ ...FALLBACK_SAMPLE_TOM, source: "Fallback-TOM aus script.js" });
   }
 
   function saveTomToLocalStorage(tom) {
@@ -1744,7 +1740,7 @@
     if (!isLocalStorageAvailable()) return null;
     try {
       const raw = localStorage.getItem(TOM_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      return raw ? normalizeTom(JSON.parse(raw)) : null;
     } catch (error) {
       return null;
     }
@@ -1760,7 +1756,7 @@
       `;
       return;
     }
-    const sections = Array.isArray(tom.sections) ? tom.sections : [];
+    const sections = Array.isArray(tom.sections) && tom.sections.length ? tom.sections : parseTomSections(tom.current_text || "");
     element.innerHTML = `
       <strong>${escapeHtml(tom.title || "Technisch-organisatorische Maßnahmen")}</strong>
       <div class="tom-meta-list">
@@ -1808,7 +1804,6 @@
     if (isLocalStorageAvailable()) localStorage.setItem(CUSTOMER_AVVS_STORAGE_KEY, JSON.stringify(customerAvvs));
   }
 
-  const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
 
   function normalizeCustomerAvv(row, index) {
     const customerName = String(row.customer_name || "").trim();

@@ -176,59 +176,14 @@
       <div>
         <p class="eyebrow dark">Aktuelle TOM</p>
         <h2 id="tom-title">TOM verwalten</h2>
-        <p>PDF lokal registrieren, Metadaten speichern und TOM-Text manuell dokumentieren. PDF-Dateien werden nicht ins Internet übertragen.</p>
-      </div>
-      <div class="button-row">
-        <label class="file-button">TOM PDF importieren
-          <input id="tomPdfUpload" type="file" accept="application/pdf,.pdf">
-        </label>
-        <button id="saveTomBtn" type="button">TOM-Metadaten speichern</button>
-        <button id="markTomAffectedBtn" class="secondary" type="button">TOM als betroffen markieren</button>
+        <p>Die aktuelle TOM wird aus data/sample_tom.json geladen und lokal im Browser angezeigt.</p>
       </div>
     </div>
-    <div id="tomMessage" class="alert hidden"></div>
     <div class="summary-grid one">
-      <article class="summary-card">
+      <article class="summary-card tom-display-card">
         <span>Aktuelle TOM-Version</span>
-        <strong id="tomSummaryVersion">Keine TOM gespeichert</strong>
-        <small id="tomSummaryStatus">Status: –</small>
+        <div id="tomCurrentDisplay" class="tom-current-display empty-state">TOM wird geladen ...</div>
       </article>
-    </div>
-    <div class="tom-layout">
-      <div class="card-block">
-        <h3>Metadaten</h3>
-        <div class="grid two">
-          <label>TOM-ID<input id="tom_id" type="text" placeholder="TOM-001"></label>
-          <label>Titel<input id="tom_title" type="text" placeholder="Technisch-organisatorische Maßnahmen"></label>
-          <label>Version<input id="tom_version" type="text" placeholder="V5"></label>
-          <label>Datum / gültig ab<input id="tom_valid_from" type="text" inputmode="numeric" placeholder="TT.MM.JJJJ"></label>
-          <label>Dateiname<input id="tom_file_name" type="text" readonly></label>
-          <label>Dateityp<input id="tom_file_type" type="text" readonly></label>
-          <label>Dateigröße<input id="tom_file_size" type="text" readonly></label>
-          <label>Status
-            <select id="tom_status">
-              <option>Aktiv</option><option>Prüfung offen</option><option>Aktualisierung nötig</option><option>Archiviert</option>
-            </select>
-          </label>
-        </div>
-        <label>SHA-256-Hash<input id="tom_hash" type="text" readonly></label>
-        <label>Kurznotiz<textarea id="tom_notes" rows="3"></textarea></label>
-      </div>
-      <div class="card-block preview-block">
-        <h3>PDF-/Textvorschau</h3>
-        <p class="muted">Die lokale Vorschau basiert auf der aktuell ausgewählten Datei und ist nach einem Neustart ggf. nicht dauerhaft verfügbar. Dauerhaft gespeichert werden Metadaten, Hash und Text.</p>
-        <iframe id="tomPdfPreview" title="TOM PDF Vorschau" class="pdf-preview hidden"></iframe>
-        <div id="tomPreviewFallback" class="empty-state">Noch keine PDF-Vorschau verfügbar.</div>
-      </div>
-    </div>
-    <label>TOM-Text aus PDF hier einfügen / manuell dokumentieren
-      <textarea id="tom_current_text" rows="8" placeholder="TOM-Text aus PDF hier einfügen"></textarea>
-    </label>
-    <div class="button-row">
-      <button id="focusTomTextBtn" class="secondary" type="button">TOM-Text manuell einfügen</button>
-      <button id="exportTomCsvBtn" class="secondary" type="button">TOM als CSV exportieren</button>
-      <button id="exportTomJsonBtn" class="secondary" type="button">TOM als JSON exportieren</button>
-      <button id="deleteTomBtn" class="danger-button" type="button">Aktuelle TOM löschen</button>
     </div>
   </section>
 
