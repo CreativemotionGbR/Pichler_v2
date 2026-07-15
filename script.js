@@ -983,19 +983,17 @@
     if (!$("change_id").value.trim()) $("change_id").value = `EMAIL-${Date.now()}`;
     if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
     const combined = `${parsed.subject} ${parsed.body}`.toLowerCase();
-    const newSubprocessor = mentionsNewSubprocessor(combined);
-    const newProvider = mentionsNewProvider(combined);
-    const securityChange = containsSecurityHint(combined);
-    if (newSubprocessor) $("change_type").value = "Neuer Subunternehmer";
-    else if (newProvider) $("change_type").value = "Neuer Dienstleister";
-    else if (securityChange) $("change_type").value = "Verschlüsselung geändert";
-    if (securityChange) $("security_change").value = "Ja";
-    if (mentionsPersonalDataContext(combined)) {
-      $("personal_data").value = "Ja";
-      $("customers_affected").value = "Ja";
-    }
-    if (newProvider || newSubprocessor) $("external_parties").value = "Ja";
-    else if (hasExternalNegation(combined)) $("external_parties").value = "Nein";
+    const facts = {
+      personalData: classifyPersonalData(combined),
+      customersAffected: classifyCustomersAffected(combined),
+      externalParties: classifyExternalParties(combined),
+      securityChange: classifySecurityChange(combined),
+    };
+    $("personal_data").value = facts.personalData;
+    $("customers_affected").value = facts.customersAffected;
+    $("external_parties").value = facts.externalParties;
+    $("security_change").value = facts.securityChange;
+    $("change_type").value = detectEmailChangeType(combined, facts);
     appendNoteOnce("E-Mail-Inhalt wurde manuell übernommen; vor dem Speichern prüfen.");
   }
 
@@ -1005,8 +1003,28 @@
     return match ? match[1] : "";
   }
 
-  function containsSecurityHint(text) {
-    return /\b(tom|verschlüsselung|aes[-\s]?\d+|tls|key-management|kryptografische schlüssel|backup-verschlüsselung|zugriff|rollen|rechte|protokollierung|backup|wiederherstellung|mfa|login|sicherheitsmaßnahmen|technisch-organisatorische maßnahmen)\b/i.test(text);
+  function classifyPersonalData(text) {
+    if (/(?:keine|keinen|ohne)\s+(?:verarbeitung\s+)?personenbezogene[nr]?\s+daten|personenbezogene[nr]?\s+daten.{0,50}(?:nicht|keine|keinen)\s+(?:verarbeitet|gespeichert|übertragen|genutzt|betroffen)/i.test(text)) return "Nein";
+    if (/(?:verarbeitet|speichert|überträgt|nutzt|enthält|zugriff\s+auf).{0,50}personenbezogene[nr]?\s+daten|personenbezogene[nr]?\s+daten.{0,50}(?:verarbeitet|gespeichert|übertragen|genutzt|betroffen)/i.test(text)) return "Ja";
+    return "Unklar";
+  }
+
+  function classifyCustomersAffected(text) {
+    if (/(?:keine|keinen)\s+(?:kunden|kundendaten).{0,30}(?:betroffen|beeinträchtigt)|(?:kunden|kundendaten).{0,40}(?:nicht|keine|keinen)\s+(?:betroffen|beeinträchtigt)/i.test(text)) return "Nein";
+    if (/(?:kunden|kundendaten).{0,30}(?:sind|werden)?\s*(?:betroffen|beeinträchtigt)|betrifft.{0,30}(?:kunden|kundendaten)/i.test(text)) return "Ja";
+    return "Unklar";
+  }
+
+  function classifyExternalParties(text) {
+    if (hasExternalNegation(text) || /(?:keine|ohne)\s+externe[nr]?\s+(?:beteiligte|dienstleister|zugriffe?)/i.test(text)) return "Nein";
+    if (mentionsNewSubprocessor(text) || mentionsNewProvider(text) || mentionsProviderChange(text) || mentionsFreelancerAccess(text)) return "Ja";
+    return "Unklar";
+  }
+
+  function classifySecurityChange(text) {
+    if (/(?:keine|keinen|ohne)\s+(?:(?:änderung(?:en)?\s+(?:an|bei)\s+)?(?:zugriffen?|berechtigungen?|rollen?|rechten?|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung)|sicherheitsänderung(?:en)?)|(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung).{0,50}(?:unverändert|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert)/i.test(text)) return "Nein";
+    if (/(?:ändert|geändert|angepasst|eingeführt|entfernt|umgestellt|deaktiviert|aktiviert).{0,60}(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung|mfa|login)|(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung|mfa|login).{0,60}(?:ändert|geändert|angepasst|eingeführt|entfernt|umgestellt|deaktiviert|aktiviert)/i.test(text)) return "Ja";
+    return "Unklar";
   }
 
   function mentionsNewSubprocessor(text) {
@@ -1026,8 +1044,34 @@
       /(dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider).{0,80}(ändert sich nicht|ändern sich nicht|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert|keine änderung)/i.test(text);
   }
 
-  function mentionsPersonalDataContext(text) {
-    return /\b(kundendaten|kunden-avv|personenbezogen|personenbezogene daten|tom|technisch-organisatorische maßnahmen)\b/i.test(text);
+  function mentionsProviderChange(text) {
+    if (hasExternalNegation(text)) return false;
+    return /(wechsel|ersetzt|ablösung|abgelöst).{0,60}(dienstleister|anbieter|provider)|(dienstleister|anbieter|provider).{0,60}(wechselt|gewechselt|ersetzt|abgelöst)/i.test(text);
+  }
+
+  function mentionsFreelancerAccess(text) {
+    return /(freelancer|freiberufler|externe[rn]?).{0,60}(zugriff|berechtigung)|(zugriff|berechtigung).{0,60}(freelancer|freiberufler)/i.test(text) && !hasExternalNegation(text);
+  }
+
+  function detectEmailChangeType(text, facts) {
+    if (/(datenschutzvorfall|sicherheitsvorfall|sicherheitsereignis|datenpanne|unautorisiert(?:er|en)?\s+zugriff|datenverlust)/i.test(text)) return "Datenschutzvorfall / Sicherheitsereignis";
+    if (mentionsProviderChange(text)) return "Wechsel Dienstleister";
+    if (mentionsNewSubprocessor(text)) return "Neuer Subunternehmer";
+    if (mentionsNewProvider(text)) return "Neuer Dienstleister";
+    if (mentionsFreelancerAccess(text)) return "Freelancer mit Zugriff";
+    if (/(system|tool|anwendung|archivsystem).{0,60}(abgeschaltet|stillgelegt|deaktiviert|außer betrieb|nicht mehr genutzt)|(abschaltung|stilllegung|außerbetriebnahme).{0,60}(system|tool|anwendung|archivsystem)/i.test(text)) return "System wird abgeschaltet";
+    if (/(api|schnittstelle|endpunkt).{0,60}(entfernt|deaktiviert|abgeschaltet|stillgelegt|entfällt)|(entfernung|abschaltung|stilllegung).{0,60}(api|schnittstelle|endpunkt)/i.test(text)) return "API entfernt";
+    if (/(api|schnittstelle|endpunkt).{0,60}(geändert|angepasst|erweitert|neu|neue datenfelder)|(änderung|anpassung|erweiterung).{0,60}(api|schnittstelle|endpunkt)/i.test(text)) return "API-Änderung";
+    if (facts.securityChange === "Ja" && /verschlüsselung.{0,60}(geändert|angepasst|eingeführt|entfernt|umgestellt)|(änderung|anpassung|umstellung).{0,60}verschlüsselung/i.test(text)) return "Verschlüsselung geändert";
+    if (facts.securityChange === "Ja" && /(rechte|rollen|berechtigungen).{0,60}(geändert|angepasst|eingeführt|entfernt)|(änderung|anpassung).{0,60}(rechte|rollen|berechtigungen)/i.test(text)) return "Rechte-/Rollenkonzept geändert";
+    if (facts.securityChange === "Ja" && /(backup|datensicherung|wiederherstellung).{0,60}(geändert|angepasst|umgestellt|verlegt)|(änderung|anpassung|umstellung).{0,60}(backup|datensicherung|wiederherstellung)/i.test(text)) return "Backup geändert";
+    if (/(infrastruktur|server|hosting|firewall|netzwerk).{0,60}(geändert|angepasst|umgestellt|migriert)|(änderung|anpassung|umstellung|migration).{0,60}(infrastruktur|server|hosting|firewall|netzwerk)/i.test(text)) return "Infrastrukturänderung";
+    if (/(software[-\s]?update|update|bugfix|patch|wartung)/i.test(text)) {
+      if (facts.personalData === "Nein") return "Software-Update ohne Datenbezug";
+      if (facts.personalData === "Ja") return "Software-Update mit Datenbezug";
+    }
+    if (!/(kein|keine|keinen|ohne).{0,30}(neues|neuen|neue).{0,30}(system|tool|anwendung)/i.test(text) && /(neues|neuen|neue).{0,30}(system|tool|anwendung)/i.test(text)) return "Neues System";
+    return "Sonstiges / Unklar";
   }
 
   function appendNoteOnce(note) {
