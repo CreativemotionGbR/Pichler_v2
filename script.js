@@ -121,10 +121,18 @@
     "Freelancer mit Zugriff",
     "API-Änderung",
     "Infrastrukturänderung",
-    "Backup geändert",
     "Rechte-/Rollenkonzept geändert",
     "Verschlüsselung geändert",
+    "Neues System",
     "Datenschutzvorfall / Sicherheitsereignis",
+  ]);
+  // "Backup geändert" ist laut Regelkatalog Medium/High: Basis Medium (siehe
+  // MEDIUM_CHANGE_TYPES), Hochstufung auf High über die allgemeinen Regeln.
+  const MEDIUM_CHANGE_TYPES = new Set([
+    "Software-Update mit Datenbezug",
+    "API entfernt",
+    "Backup geändert",
+    "System wird abgeschaltet",
   ]);
   const AVV_CHANGE_TYPES = new Set([
     "Neuer Dienstleister",
@@ -268,18 +276,23 @@
   let avvPreviewUrl = "";
 
   const $ = (id) => document.getElementById(id);
-  const form = $("changeForm");
+  // In Browsern wird die Oberfläche initialisiert; unter Node (Tests) fehlt das
+  // DOM, dann bleibt nur die reine Regel-Logik nutzbar (siehe module.exports).
+  const hasDom = typeof document !== "undefined";
+  const form = hasDom ? $("changeForm") : null;
 
-  document.addEventListener("DOMContentLoaded", init);
-  document.addEventListener("DOMContentLoaded", () => {
-    try {
-      renderStaticTom();
+  if (hasDom) {
+    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      try {
+        renderStaticTom();
 
-      document.getElementById("reloadSampleTomBtn")?.addEventListener("click", resetEditedTom);
-    } catch (error) {
-      console.error("Statische TOM konnte nicht angezeigt werden:", error);
-    }
-  });
+        document.getElementById("reloadSampleTomBtn")?.addEventListener("click", resetEditedTom);
+      } catch (error) {
+        console.error("Statische TOM konnte nicht angezeigt werden:", error);
+      }
+    });
+  }
 
   async function init() {
     populateSelect("change_type", KNOWN_CHANGE_TYPES);
@@ -481,8 +494,7 @@
 
     if (change.external_parties === "Ja" && change.personal_data === "Ja") score = Math.max(score, 3);
     if (HIGH_CHANGE_TYPES.has(changeType)) score = Math.max(score, 3);
-    if (changeType === "Neues System" && change.personal_data === "Ja") score = Math.max(score, 3);
-    if (["Software-Update mit Datenbezug", "API entfernt", "System wird abgeschaltet"].includes(changeType)) score = Math.max(score, 2);
+    if (MEDIUM_CHANGE_TYPES.has(changeType)) score = Math.max(score, 2);
     if (change.customers_affected === "Ja" && customerCount > 10) score = Math.max(score, 3);
 
     const gdprFields = [change.security_change, change.personal_data, change.customers_affected, change.external_parties];
@@ -1931,5 +1943,20 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  // Reine Regel-Logik für automatisierte Tests unter Node exportieren.
+  // Im Browser existiert kein `module`, daher der Guard – die App bleibt unberührt.
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      evaluateChange,
+      isAvvAffected,
+      isTomAffected,
+      normalizeChange,
+      validateChange,
+      KNOWN_CHANGE_TYPES,
+      HIGH_CHANGE_TYPES,
+      MEDIUM_CHANGE_TYPES,
+    };
   }
 })();
