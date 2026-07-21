@@ -31,13 +31,14 @@
 
   <main class="app-shell">
     <section class="panel form-panel" aria-labelledby="form-title">
-      <div class="section-heading">
+      <details class="collapsible" open>
+      <summary class="section-heading">
         <div>
           <h2 id="form-title">Änderung erfassen</h2>
           <p>Pflichtfelder sind mit * markiert.</p>
         </div>
         <button id="resetFormBtn" class="secondary" type="button">Formular leeren</button>
-      </div>
+      </summary>
 
       <div id="storageWarning" class="alert warning hidden"></div>
       <div id="validationErrors" class="alert danger hidden"></div>
@@ -136,16 +137,22 @@
           <button id="saveBtn" class="success" type="button" disabled>Änderung speichern</button>
         </div>
       </form>
+      </details>
     </section>
 
     <section class="panel result-panel" aria-labelledby="result-title">
-      <h2 id="result-title">Bewertungsergebnis</h2>
+      <details class="collapsible" open>
+      <summary class="section-heading">
+        <div><h2 id="result-title">Bewertungsergebnis</h2></div>
+      </summary>
       <div id="resultBox" class="empty-state">Noch keine Bewertung. Fülle das Formular aus und klicke auf „Änderung bewerten“.</div>
+      </details>
     </section>
   </main>
 
   <section class="panel history-panel" aria-labelledby="history-title">
-    <div class="section-heading wrap">
+    <details class="collapsible" open>
+    <summary class="section-heading wrap">
       <div>
         <h2 id="history-title">Lokale Änderungshistorie</h2>
         <p>Gespeichert im Browser-localStorage. Exportiere die Daten bei Bedarf als Sicherung.</p>
@@ -159,7 +166,7 @@
         <button id="exportCsvBtn" class="secondary" type="button">CSV exportieren</button>
         <button id="clearDataBtn" class="danger-button" type="button">lokale Daten löschen</button>
       </div>
-    </div>
+    </summary>
     <div id="importErrors" class="alert danger hidden"></div>
     <div class="table-wrap">
       <table id="historyTable">
@@ -167,19 +174,21 @@
         <tbody></tbody>
       </table>
     </div>
+    </details>
   </section>
 
 
 
   <section id="view-tom" class="panel app-view tom-panel" aria-labelledby="tom-title">
-    <div class="section-heading wrap">
+    <details class="collapsible" open>
+    <summary class="section-heading wrap">
       <div>
         <p class="eyebrow dark">Aktuelle TOM</p>
         <h2 id="tom-title">TOM verwalten</h2>
         <p>Die aktuelle TOM wird als lokale Beispiel-TOM im Browser angezeigt.</p>
       </div>
       <button id="reloadSampleTomBtn" class="secondary small-button" type="button">Beispiel-TOM neu laden</button>
-    </div>
+    </summary>
     <div id="tomEditMessage" class="alert hidden"></div>
     <div class="summary-grid one">
       <article class="summary-card tom-display-card">
@@ -187,16 +196,18 @@
         <div id="tomCurrentDisplay" class="tom-current-display empty-state">TOM wird geladen ...</div>
       </article>
     </div>
+    </details>
   </section>
 
   <section id="view-customer-avvs" class="panel app-view customer-avv-panel" aria-labelledby="customer-avv-title">
-    <div class="section-heading wrap">
+    <details class="collapsible" open>
+    <summary class="section-heading wrap">
       <div>
         <p class="eyebrow dark">Kundenbezogene AVVs</p>
         <h2 id="customer-avv-title">Kunden-AVVs verwalten</h2>
         <p>CSV-Daten importieren, AVV-PDF je Kunde registrieren und Datensätze lokal zur Prüfung markieren.</p>
       </div>
-    </div>
+    </summary>
     <div id="customerAvvMessage" class="alert hidden"></div>
     <div class="summary-grid">
       <article class="summary-card"><span>Kunden-AVVs gesamt</span><strong id="avvCountTotal">0</strong></article>
@@ -216,22 +227,25 @@
       <h3>Detailpanel ausgewählter Kunden-AVV</h3>
       <div id="customerAvvDetail" class="empty-state">Noch kein Kunden-AVV ausgewählt.</div>
     </div>
+    </details>
   </section>
 
   <section id="view-web-screening" class="panel app-view" aria-labelledby="web-screening-title">
-    <div class="section-heading wrap">
+    <details class="collapsible" open>
+    <summary class="section-heading wrap">
       <div>
         <p class="eyebrow dark">Prototyp</p>
         <h2 id="web-screening-title">Datenschutz-News prüfen</h2>
         <p>Relevante Datenschutz-Webseiten können perspektivisch regelmäßig geprüft werden. Neue Beiträge werden hier als mögliche Änderungsauslöser angezeigt.</p>
       </div>
       <button id="reloadWebScanBtn" class="secondary" type="button">Demo-Beiträge laden</button>
-    </div>
+    </summary>
     <div class="alert warning">
       Prototyp: Die Einschätzung ist eine Orientierung und ersetzt keine rechtliche Prüfung. Es werden keine E-Mails versendet, keine Logins genutzt und keine Hintergrundüberwachung gestartet.
     </div>
     <div id="webScanMessage" class="alert hidden"></div>
     <div id="webScanResults" class="web-scan-results empty-state">Noch keine Beiträge geladen.</div>
+    </details>
   </section>
 
   <footer>

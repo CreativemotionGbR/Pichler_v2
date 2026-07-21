@@ -97,6 +97,50 @@ h2 { font-size: 1.25rem; }
   margin-bottom: 1rem;
 }
 
+/* Aufklappbare Hauptbereiche via native <details>/<summary>. */
+details.collapsible {
+  margin: 0;
+}
+
+details.collapsible > summary.section-heading {
+  cursor: pointer;
+  list-style: none;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  transition: background 0.12s;
+}
+
+details.collapsible > summary.section-heading:hover {
+  background: #f5f8fc;
+}
+
+details.collapsible > summary.section-heading::-webkit-details-marker {
+  display: none;
+}
+
+/* Titelblock nimmt den Platz ein und drückt die Buttons nach rechts. */
+details.collapsible > summary.section-heading > div:first-child {
+  flex: 1 1 auto;
+}
+
+/* Dreieck-Indikator, dreht sich beim Aufklappen. */
+details.collapsible > summary.section-heading::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-top: 0.5rem;
+  border-right: 2.5px solid var(--primary);
+  border-bottom: 2.5px solid var(--primary);
+  transform: rotate(-45deg);
+  transition: transform 0.18s ease;
+}
+
+details.collapsible[open] > summary.section-heading::before {
+  transform: rotate(45deg);
+}
+
 .section-heading p {
   margin: 0.25rem 0 0;
   color: var(--muted);
