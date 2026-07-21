@@ -995,22 +995,96 @@
     $("source").value = "Manuell eingefügte E-Mail";
     if (!$("description").value.trim()) $("description").value = parsed.body || originalText;
     if (!$("change_id").value.trim()) $("change_id").value = `EMAIL-${Date.now()}`;
-    if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
-    const combined = `${parsed.subject} ${parsed.body}`.toLowerCase();
-    const newSubprocessor = mentionsNewSubprocessor(combined);
-    const newProvider = mentionsNewProvider(combined);
-    const securityChange = containsSecurityHint(combined);
-    if (newSubprocessor) $("change_type").value = "Neuer Subunternehmer";
-    else if (newProvider) $("change_type").value = "Neuer Dienstleister";
-    else if (securityChange) $("change_type").value = "Verschlüsselung geändert";
-    if (securityChange) $("security_change").value = "Ja";
-    if (mentionsPersonalDataContext(combined)) {
-      $("personal_data").value = "Ja";
-      $("customers_affected").value = "Ja";
+    const emailBody = parsed.body || originalText;
+    const systems = extractAffectedSystems(emailBody);
+    if (systems) $("affected_systems").value = systems;
+    else if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
+    const fields = classifyEmailFields(parsed.subject, emailBody);
+    if (fields.change_type) $("change_type").value = fields.change_type;
+    ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
+      if (fields[field]) $(field).value = fields[field];
+    });
+    appendNoteOnce("E-Mail-Inhalt wurde automatisch vorbelegt; bitte vor dem Speichern prüfen.");
+  }
+
+  // Leitet die Ja/Nein-Felder und den Änderungstyp aus dem E-Mail-Text ab.
+  // Berücksichtigt Verneinungen ("keine ...", "bleiben unverändert"), damit z.B.
+  // "Sicherheitsmaßnahmen bleiben unverändert" NICHT als Sicherheitsänderung gilt.
+  function classifyEmailFields(subject, body) {
+    const text = `${subject || ""} ${body || ""}`.toLowerCase();
+    const fields = {};
+
+    // Personenbezogene Daten
+    if (/\b(kein|keine|keinen)\b[^.]*personenbezogen/.test(text) || /\bohne\b[^.]*personenbezug/.test(text)) {
+      fields.personal_data = "Nein";
+    } else if (/personenbezogen\w*\s+daten/.test(text) || /\bkundendaten\b/.test(text) || /\bpersonenbezug\b/.test(text)) {
+      fields.personal_data = "Ja";
     }
-    if (newProvider || newSubprocessor) $("external_parties").value = "Ja";
-    else if (hasExternalNegation(combined)) $("external_parties").value = "Nein";
-    appendNoteOnce("E-Mail-Inhalt wurde manuell übernommen; vor dem Speichern prüfen.");
+
+    // Kunden betroffen
+    if (/\b(kein|keine|keinen)\b[^.]*\bkunden/.test(text)) {
+      fields.customers_affected = "Nein";
+    } else if (/\bkunden(daten)?\b[^.]*betroffen/.test(text) || /betrifft[^.]*\bkunden/.test(text)) {
+      fields.customers_affected = "Ja";
+    }
+
+    // Externe Beteiligte
+    if (mentionsNewProvider(text) || mentionsNewSubprocessor(text)) {
+      fields.external_parties = "Ja";
+    } else if (/\b(kein|keine|keinen)\b[^.]*(extern\w*|dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider|freelancer)/.test(text) || hasExternalNegation(text)) {
+      fields.external_parties = "Nein";
+    } else if (/\bfreelancer\b/.test(text) || /extern\w*\s+(dienstleister|beteiligt\w*|partner|zugriff\w*)/.test(text)) {
+      fields.external_parties = "Ja";
+    }
+
+    // Sicherheitsänderung – Verneinung schlägt Schlüsselwort
+    const securityUnchanged =
+      /(zugriff\w*|berechtigung\w*|rollen|rechte|sicherheitsmaßnahme\w*|verschlüsselung|firewall|backup)[^.]*\b(bleiben|bleibt|sind|ist)\s+unverändert/.test(text) ||
+      /\b(kein|keine|keinen)\b[^.]*änderung\w*[^.]*(sicherheit|zugriff|berechtigung|rollen|rechte|verschlüsselung|firewall|backup)/.test(text) ||
+      /(sicherheit\w*|zugriff\w*|berechtigung\w*|verschlüsselung|firewall|backup)[^.]*(nicht\s+(geändert|verändert)|unverändert)/.test(text);
+    if (securityUnchanged) {
+      fields.security_change = "Nein";
+    } else if (containsSecurityHint(text)) {
+      fields.security_change = "Ja";
+    }
+
+    // Änderungstyp nach Regelwerk
+    const isUpdate = /\b(update\w*|aktualisier\w+|patch\w*|bugfix\w*|fehlerbehebung|release\w*|upgrade\w*|hotfix\w*)\b/.test(text) || /\bversion\s*[\d.]/.test(text);
+    if (mentionsNewSubprocessor(text)) {
+      fields.change_type = "Neuer Subunternehmer";
+    } else if (mentionsNewProvider(text)) {
+      fields.change_type = "Neuer Dienstleister";
+    } else if (isUpdate) {
+      fields.change_type = fields.personal_data === "Ja" ? "Software-Update mit Datenbezug" : "Software-Update ohne Datenbezug";
+    } else if (fields.security_change === "Ja") {
+      if (/verschlüsselung/.test(text)) fields.change_type = "Verschlüsselung geändert";
+      else if (/firewall|netzwerk|hosting|\bserver\b/.test(text)) fields.change_type = "Infrastrukturänderung";
+      else if (/backup/.test(text)) fields.change_type = "Backup geändert";
+      else if (/rollen|rechte|berechtigung/.test(text)) fields.change_type = "Rechte-/Rollenkonzept geändert";
+    }
+
+    return fields;
+  }
+
+  // Best-effort-Extraktion betroffener Systeme aus dem Klartext der E-Mail:
+  // erkennt großgeschriebene Komposita auf typische IT-Endungen (Server, Software, ...).
+  function extractAffectedSystems(body) {
+    if (!body) return "";
+    const matches = body.match(
+      /\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]*(?:server|software|system(?:e)?|anwendung(?:en)?|datenbank(?:en)?|cloud|api|schnittstelle(?:n)?|dienst(?:e)?|plattform(?:en)?|tool(?:s)?|hosting|portal(?:e)?|modul(?:e)?)(?:e|en|n|s)?\b/g
+    );
+    if (!matches) return "";
+    const seen = new Set();
+    const out = [];
+    for (const raw of matches) {
+      const cleaned = raw.replace(/ern$/, "er");
+      const key = cleaned.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(cleaned);
+      }
+    }
+    return out.join(", ");
   }
 
   function extractDisplayDate(value) {
@@ -1040,9 +1114,6 @@
       /(dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider).{0,80}(ändert sich nicht|ändern sich nicht|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert|keine änderung)/i.test(text);
   }
 
-  function mentionsPersonalDataContext(text) {
-    return /\b(kundendaten|kunden-avv|personenbezogen|personenbezogene daten|tom|technisch-organisatorische maßnahmen)\b/i.test(text);
-  }
 
   function appendNoteOnce(note) {
     const current = $("notes").value.trim();
@@ -1954,6 +2025,8 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
       isTomAffected,
       normalizeChange,
       validateChange,
+      classifyEmailFields,
+      extractAffectedSystems,
       KNOWN_CHANGE_TYPES,
       HIGH_CHANGE_TYPES,
       MEDIUM_CHANGE_TYPES,
