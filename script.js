@@ -315,7 +315,29 @@
     loadSampleCustomerAvvsIfEmpty();
     loadWebScanResults();
     bindEvents();
+    setupCollapsibleSections();
     if (history.length === 0) loadSampleData(true);
+  }
+
+  // Aufklappbare Hauptbereiche: Klicks auf Buttons/Eingaben in der Kopfzeile
+  // dürfen den Bereich nicht auf-/zuklappen, und Navigationslinks öffnen einen
+  // eingeklappten Zielbereich automatisch.
+  function setupCollapsibleSections() {
+    document.querySelectorAll("details.collapsible > summary").forEach((summary) => {
+      summary.querySelectorAll("button, a, label, input, select, textarea").forEach((control) => {
+        control.addEventListener("click", (event) => event.stopPropagation());
+      });
+    });
+    document.querySelectorAll('.app-nav a[href^="#"]').forEach((link) => {
+      link.addEventListener("click", () => {
+        const target = document.querySelector(link.getAttribute("href"));
+        if (!target) return;
+        // Ziel kann der Bereich selbst (details liegt darin) oder ein Element
+        // innerhalb des Bereichs sein (details liegt darüber).
+        const details = target.closest("details.collapsible") || target.querySelector("details.collapsible");
+        if (details && !details.open) details.open = true;
+      });
+    });
   }
 
   function bindEvents() {
