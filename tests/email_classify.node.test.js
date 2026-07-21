@@ -12,9 +12,11 @@
 const assert = require("assert");
 const path = require("path");
 
-const { classifyEmailFields, extractAffectedSystems, evaluateChange } = require(
+const { classifyEmailFields, extractAffectedSystems } = require(
   path.join(__dirname, "..", "script.js")
 );
+const { evaluateChange } = require(path.join(__dirname, "..", "js", "rules-engine.js"));
+const rules = require(path.join(__dirname, "..", "data", "rules.json"));
 
 let passed = 0;
 const failures = [];
@@ -58,7 +60,7 @@ check("Druckserver-Update: Gesamtbewertung ist Low", () => {
     { change_id: "CHG-005", date: "2026-07-13", description: druckserverMail, number_of_customers: 0 },
     f
   );
-  const result = evaluateChange(change);
+  const result = evaluateChange(change, rules);
   assert.strictEqual(result.impact_level, "Low");
   assert.deepStrictEqual(result.affected_documents, ["Änderungshistorie"]);
 });

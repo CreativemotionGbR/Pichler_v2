@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "ruleset_version": "2026-07-21",
+  "source": {
+    "title": "DSGVO_Regelwerk.pdf",
+    "description": "Screenshots des ursprünglichen Excel-Regelwerks",
+    "pages": 7,
+    "authority": "fachliche Referenz"
+  },
+  "input_model": {
+    "fields": [
+      { "id": "change_id", "label": "ID", "type": "text", "required": true, "description": "Eindeutige Referenz zur Identifikation und Nachverfolgung einer Änderung" },
+      { "id": "date", "label": "Datum", "type": "date", "required": true, "description": "Zeitpunkt der Änderung" },
+      { "id": "change_type", "label": "Änderungstyp", "type": "selection", "required": true, "description": "Klassifikation der Änderung; Auswahl aus definierten Änderungstypen" },
+      { "id": "description", "label": "Beschreibung", "type": "text", "required": true, "description": "Kurze technische Beschreibung der Änderung" },
+      { "id": "security_change", "label": "Sicherheitsänderung", "type": "selection", "required": true, "allowed_values": ["Ja", "Nein"], "uncertainty_value": "Unklar", "description": "Betrifft die Änderung Sicherheitsmaßnahmen, zum Beispiel Firewall, Rollen, Mehrfaktorauthentifizierung oder Verschlüsselung?" },
+      { "id": "source", "label": "Quelle", "type": "text", "required": false, "description": "Zum Beispiel Mail oder Webseite" },
+      { "id": "affected_systems", "label": "Betroffene Systeme", "type": "text", "required": true, "description": "Betroffene Anwendungen, Schnittstellen oder IT-Systeme" },
+      { "id": "personal_data", "label": "Personenbezogene Daten", "type": "selection", "required": true, "allowed_values": ["Ja", "Nein"], "uncertainty_value": "Unklar", "description": "Werden personenbezogene Daten verarbeitet oder geändert?" },
+      { "id": "customers_affected", "label": "Betroffene Kunden", "type": "selection", "required": true, "allowed_values": ["Ja", "Nein"], "uncertainty_value": "Unklar", "description": "Sind Kunden oder Kundendaten betroffen?" },
+      { "id": "number_of_customers", "label": "Anzahl Kunden", "type": "number", "required": false, "description": "Optional" },
+      { "id": "external_parties", "label": "Externe Beteiligte", "type": "selection", "required": true, "allowed_values": ["Ja", "Nein"], "uncertainty_value": "Unklar", "description": "Sind externe Dienstleister, Freelancer oder Subunternehmer beteiligt?" }
+    ]
+  },
+  "impact_model": {
+    "levels": {
+      "Low": { "rank": 1, "meaning": "Änderung hat keinen direkten DSGVO-Effekt, wird aber dokumentiert." },
+      "Medium": { "rank": 2, "meaning": "DSGVO-Bezug möglich, Prüfung erforderlich." },
+      "High": { "rank": 3, "meaning": "Änderung ist klar DSGVO-relevant." }
+    },
+    "criteria": {
+      "Low": [
+        "Keine personenbezogenen Daten betroffen",
+        "Keine Änderung an Dienstleistern",
+        "Keine Änderung an Zugriffen",
+        "Keine Änderung an Sicherheitsmaßnahmen",
+        "Nur interne technische Kleinänderung ohne Datenbezug"
+      ],
+      "Medium": [
+        "Software-Update mit unklarem Datenbezug",
+        "Änderung an bestehendem System",
+        "Anpassung an Prozessen ohne neuen Dienstleister",
+        "Kleinere Konfigurationsänderung",
+        "Neue Funktion, aber noch unklar, ob personenbezogene Daten betroffen sind",
+        "Unklarheit oder Unsicherheit"
+      ],
+      "High": [
+        "Neuer Dienstleister oder Subunternehmer",
+        "Externer Zugriff auf Kundendaten",
+        "Neue personenbezogene Datenkategorie",
+        "Neue Schnittstelle mit Datenübertragung",
+        "Hosting- oder Cloud-Wechsel",
+        "Zugriffskontrolle, Verschlüsselung oder Backup betroffen",
+        "Drittlandbezug",
+        "Änderung betrifft viele Kunden"
+      ]
+    },
+    "operational_rules": [
+      { "id": "impact-unknown", "description": "Unklarheit vorhanden", "when": { "any_required_value": "Unklar" }, "minimum_impact": "Medium" },
+      { "id": "impact-external-data", "description": "Externer Zugriff auf personenbezogene Daten", "when": { "all": [{ "field": "external_parties", "equals": "Ja" }, { "field": "personal_data", "equals": "Ja" }] }, "minimum_impact": "High" },
+      { "id": "impact-customers", "description": "Kunden betroffen; Medium bis High möglich", "when": { "field": "customers_affected", "equals": "Ja" }, "minimum_impact": "Medium", "ambiguous": true }
+    ],
+    "non_operationalized_criteria": [
+      { "criterion": "Neue personenbezogene Datenkategorie", "reason": "Kein eigenes strukturiertes Eingabefeld im PDF definiert" },
+      { "criterion": "Drittlandbezug", "reason": "Kein eigenes strukturiertes Eingabefeld im PDF definiert" },
+      { "criterion": "Änderung betrifft viele Kunden", "reason": "Das PDF definiert keinen Schwellenwert für viele Kunden" },
+      { "criterion": "Kleinere Konfigurationsänderung", "reason": "Kein eigener Änderungstyp oder eindeutiger strukturierter Trigger definiert" }
+    ]
+  },
+  "decision_logic": [
+    { "step": 1, "trigger": "Personenbezogene Daten = Ja", "check": "DSGVO prüfen", "possible_result": "DSGVO-Relevanz möglich" },
+    { "step": 2, "trigger": "Externe Beteiligte = Ja", "check": "AVV prüfen", "possible_result": "AVV-Relevanz möglich" },
+    { "step": 3, "trigger": "Sicherheitsänderung = Ja", "check": "TOM prüfen", "possible_result": "TOM-Relevanz möglich" },
+    { "step": 4, "trigger": "Kunden betroffen = Ja", "check": "Kunden-/Datenauswirkung prüfen", "possible_result": "Medium bis High möglich", "ambiguous": true },
+    { "step": 5, "trigger": "Unklarheit vorhanden", "check": "Manuelle Prüfung", "possible_result": "Medium möglich" },
+    { "step": 6, "trigger": "Keine relevanten Bedingungen erfüllt", "check": "Dokumentation ausreichend", "possible_result": "Low möglich; keine weitere DSGVO-Prüfung" }
+  ],
+  "avv_relevance": {
+    "principle": "AVV betroffen, wenn sich etwas an der Auftragsverarbeitung ändert",
+    "triggers": [
+      { "trigger": "Neuer Dienstleister / Subunternehmer", "relevance": "High", "reason": "Neuer Auftragsverarbeiter oder Subunternehmer muss vertraglich geregelt werden" },
+      { "trigger": "Wechsel eines Dienstleisters", "relevance": "High", "reason": "Vertragspartner oder Verarbeitungskette ändert sich" },
+      { "trigger": "Neuer Zugriff durch Freelancer / Externe", "relevance": "High", "reason": "Kann neue Auftragsverarbeitung oder neue Zugriffssituation sein" },
+      { "trigger": "Neue Datenkategorie wird verarbeitet", "relevance": "High", "reason": "Art der Datenverarbeitung ändert sich" },
+      { "trigger": "Neue Kundengruppe / Betroffenengruppe", "relevance": "Medium/High", "reason": "Kategorien betroffener Personen können sich ändern", "ambiguous": true },
+      { "trigger": "Neue Verarbeitung außerhalb EU/EWR", "relevance": "High", "reason": "Drittlandtransfer oder Subprozessoren relevant" },
+      { "trigger": "Änderung bei Subunternehmern", "relevance": "High", "reason": "Anforderungen an weitere Auftragsverarbeiter; aktuelle Informationen zu Prozessoren und Subprozessoren sollten verfügbar gehalten werden" }
+    ]
+  },
+  "tom_relevance": {
+    "principle": "TOM betroffen, wenn sich Sicherheitsmaßnahmen oder technische Schutzmechanismen ändern",
+    "triggers": [
+      { "trigger": "Firewall-/Netzwerkänderung", "relevance": "High", "reason": "Zugriffsschutz oder Netzwerksicherheit betroffen" },
+      { "trigger": "Backup-Prozess geändert", "relevance": "Medium/High", "reason": "Wiederherstellbarkeit oder Verfügbarkeit betroffen", "ambiguous": true },
+      { "trigger": "Rechte- und Rollenkonzept geändert", "relevance": "High", "reason": "Zugriffskontrolle betroffen" },
+      { "trigger": "Verschlüsselung geändert", "relevance": "High", "reason": "Schutz personenbezogener Daten betroffen" },
+      { "trigger": "Hosting-/Serverumgebung geändert", "relevance": "High", "reason": "Infrastruktur und Sicherheitsniveau betroffen" },
+      { "trigger": "Neues Login-/MFA-Verfahren", "relevance": "Medium/High", "reason": "Zugangskontrolle betroffen", "ambiguous": true },
+      { "trigger": "Monitoring / Logging geändert", "relevance": "Medium", "reason": "Nachvollziehbarkeit und Kontrolle betroffen" }
+    ]
+  },
+  "change_types": {
+    "Neuer Dienstleister": { "description": "Neuer Cloud-, Hosting-, Support- oder Softwareanbieter", "impact": "High", "documents": ["AVV"], "possible_documents": [], "measures": ["AVV prüfen/abschließen", "Dienstleister dokumentieren"], "trigger": "Extern + Daten", "system_decision": "HIGH + AVV" },
+    "Wechsel Dienstleister": { "description": "Anbieter wird ersetzt", "impact": "High", "documents": ["AVV"], "possible_documents": ["TOM"], "measures": ["alten/neuen Dienstleister dokumentieren", "AVV aktualisieren", "Sicherheitsniveau prüfen"], "trigger": "Extern + Vertragsänderung", "system_decision": "HIGH + AVV/TOM" },
+    "Neuer Subunternehmer": { "description": "Anbieter setzt neuen Subunternehmer ein", "impact": "High", "documents": ["AVV"], "possible_documents": [], "measures": ["Subunternehmerliste prüfen", "Kundenfreigabe/Info prüfen"], "trigger": "Extern + Unterauftragnehmer", "system_decision": "HIGH + AVV" },
+    "Freelancer mit Zugriff": { "description": "Externer bekommt Zugriff auf Kundendaten oder Systeme", "impact": "High", "documents": ["AVV", "TOM"], "possible_documents": [], "measures": ["Vertrags-/Rollenstatus klären", "Zugriff dokumentieren", "TOM prüfen"], "trigger": "Externer Zugriff", "system_decision": "HIGH + AVV/TOM" },
+    "Software-Update ohne Datenbezug": { "description": "Bugfix oder technische Wartung", "impact": "Low", "documents": ["Änderungshistorie"], "possible_documents": [], "measures": ["Änderung dokumentieren"], "trigger": "Intern + Wartung", "system_decision": "LOW" },
+    "Software-Update mit Datenbezug": { "description": "Neue Funktion verarbeitet Kundendaten", "impact": "Medium/High", "default_impact": "Medium", "documents": ["TOM"], "possible_documents": ["AVV"], "measures": ["Datenverarbeitung prüfen", "TOM aktualisieren", "ggf. AVV prüfen"], "trigger": "Datenverarbeitung", "system_decision": "MEDIUM/HIGH + TOM/AVV", "ambiguous": true },
+    "API-Änderung": { "description": "Neue Schnittstelle oder neue Datenfelder", "impact": "High", "documents": ["AVV", "TOM"], "possible_documents": [], "measures": ["Datenfluss analysieren", "Schnittstelle dokumentieren", "Zugriffsschutz prüfen"], "trigger": "Datenübertragung", "system_decision": "HIGH + AVV/TOM" },
+    "API entfernt": { "description": "Schnittstelle wird deaktiviert", "impact": "Medium", "documents": ["Änderungshistorie"], "possible_documents": ["TOM"], "measures": ["Datenfluss aktualisieren", "alte Zugriffe entfernen"], "trigger": "Schnittstellenänderung", "system_decision": "MEDIUM + AVV/TOM" },
+    "Infrastrukturänderung": { "description": "Server, Netzwerk, Firewall oder Hosting", "impact": "High", "documents": ["TOM"], "possible_documents": [], "measures": ["Sicherheitsmaßnahme prüfen/anpassen", "Änderung dokumentieren"], "trigger": "Infrastruktur", "system_decision": "HIGH + TOM" },
+    "Backup geändert": { "description": "Backup-Ort, Frequenz oder Wiederherstellung geändert", "impact": "Medium/High", "default_impact": "Medium", "documents": ["TOM"], "possible_documents": [], "measures": ["Backup-/Recovery-Konzept aktualisieren"], "trigger": "Backup/Recovery", "system_decision": "MEDIUM/HIGH + TOM", "ambiguous": true },
+    "Rechte-/Rollenkonzept geändert": { "description": "Neue Rollen oder neue Berechtigungen", "impact": "High", "documents": ["TOM"], "possible_documents": [], "measures": ["Zugriffskontrolle prüfen", "Rollen dokumentieren"], "trigger": "Zugriffsänderung", "system_decision": "HIGH + TOM" },
+    "Verschlüsselung geändert": { "description": "Neue oder entfernte Verschlüsselung", "impact": "High", "documents": ["TOM"], "possible_documents": [], "measures": ["Schutzmaßnahme dokumentieren", "Risiko prüfen"], "trigger": "Sicherheitsmaßnahme", "system_decision": "HIGH + TOM" },
+    "Neues System": { "description": "Neues Tool verarbeitet personenbezogene Daten", "impact": "High", "documents": ["AVV", "TOM"], "possible_documents": [], "measures": ["System erfassen", "Datenarten prüfen", "AVV/TOM ableiten"], "trigger": "neues System + Datenverarbeitung", "system_decision": "HIGH + AVV/TOM" },
+    "System wird abgeschaltet": { "description": "Tool wird nicht mehr genutzt", "impact": "Medium", "documents": ["AVV", "TOM", "Änderungshistorie"], "possible_documents": [], "measures": ["Dokumentation bereinigen", "Verträge/Zugriffe prüfen"], "trigger": "Systemstilllegung", "system_decision": "MEDIUM + AVV/TOM/Historie" },
+    "Datenschutzvorfall / Sicherheitsereignis": { "description": "Unautorisierter Zugriff oder Datenverlust", "impact": "High", "documents": ["TOM"], "possible_documents": ["Meldedokumentation"], "measures": ["Sofortprüfung", "Incident-Prozess", "TOM anpassen"], "trigger": "Sicherheitsvorfall", "system_decision": "HIGH + TOM + Incident" }
+  },
+  "measures_catalog": {
+    "AVV": [
+      { "measure": "AVV prüfen", "when": "Dienstleister/Verarbeitung unklar", "output": "AVV prüfen erforderlich" },
+      { "measure": "AVV neu abschließen", "when": "neuer Auftragsverarbeiter", "output": "Neuer AVV erforderlich" },
+      { "measure": "AVV aktualisieren", "when": "bestehender Vertrag betroffen", "output": "AVV-Anlage oder Dienstleisterdaten aktualisieren" },
+      { "measure": "Subunternehmerliste prüfen", "when": "neuer Subdienstleister", "output": "Subunternehmer prüfen und dokumentieren" },
+      { "measure": "Drittlandtransfer prüfen", "when": "Daten außerhalb EU/EWR", "output": "Drittlandtransfer oder Schutzmechanismen prüfen" },
+      { "measure": "Datenarten aktualisieren", "when": "neue Datenkategorie", "output": "Datenkategorien im AVV prüfen" },
+      { "measure": "Zweck/Natur der Verarbeitung prüfen", "when": "neue Verarbeitung", "output": "Verarbeitungszweck im AVV prüfen" }
+    ],
+    "TOM": [
+      { "measure": "Zugriffskontrolle prüfen", "when": "Rollen/Rechte/Externe betroffen", "output": "Zugriffskontrolle prüfen/anpassen" },
+      { "measure": "Zugangskontrolle prüfen", "when": "Login/MFA/Auth geändert", "output": "Zugangskontrolle aktualisieren" },
+      { "measure": "Verschlüsselung prüfen", "when": "Verschlüsselung geändert", "output": "Verschlüsselungsmaßnahme prüfen" },
+      { "measure": "Backup-Konzept prüfen", "when": "Backup geändert", "output": "Backup-/Recovery-Prozess aktualisieren" },
+      { "measure": "Netzwerk-/Firewallregel prüfen", "when": "Infrastruktur geändert", "output": "Netzwerksicherheit prüfen" },
+      { "measure": "Protokollierung prüfen", "when": "Logging/Monitoring geändert", "output": "Protokollierung dokumentieren" },
+      { "measure": "Verfügbarkeit prüfen", "when": "Hosting/Server betroffen", "output": "Verfügbarkeit und Wiederherstellung prüfen" },
+      { "measure": "Löschkonzept prüfen", "when": "Datenaufbewahrung geändert", "output": "Lösch- und Aufbewahrungslogik prüfen" }
+    ],
+    "communication": [
+      { "measure": "interne Info vorbereiten", "when": "Medium/High", "output": "Interne Prüfung erforderlich" },
+      { "measure": "Kundeninformation vorbereiten", "when": "Kunden betroffen", "output": "Kundenkommunikation vorbereiten" },
+      { "measure": "keine Kundeninfo nötig", "when": "rein interne Low-Änderung", "output": "Keine externe Kommunikation erforderlich" },
+      { "measure": "Mail-Template generieren", "when": "High + Kunden betroffen", "output": "E-Mail-Entwurf erzeugen" },
+      { "measure": "Anhang prüfen", "when": "AVV/TOM geändert", "output": "Aktualisierte Unterlage vor Versand prüfen" }
+    ]
+  },
+  "ambiguities": [
+    { "id": "amb-unclear-input", "subject": "Unklar als Eingabewert", "stated_range": "Medium möglich", "resolution": "Die Eingabefeld-Tabelle nennt Ja/Nein; Bewertungssystem und Entscheidungslogik nennen Unklarheit. Unklar wird deshalb als gesonderter Unsicherheitswert dokumentiert." },
+    { "id": "amb-software-data", "subject": "Software-Update mit Datenbezug", "stated_range": "Medium/High", "resolution": "Keine Abgrenzungsbedingung im PDF; Engine verwendet Medium und verlangt manuelle Prüfung." },
+    { "id": "amb-backup", "subject": "Backup geändert", "stated_range": "Medium/High", "resolution": "Keine Abgrenzungsbedingung im PDF; Engine verwendet Medium und verlangt manuelle Prüfung." },
+    { "id": "amb-customer-group", "subject": "Neue Kundengruppe / Betroffenengruppe", "stated_range": "Medium/High", "resolution": "Keine Abgrenzungsbedingung im PDF und kein eigenes Eingabefeld; nicht automatisch operationalisiert." },
+    { "id": "amb-login-mfa", "subject": "Neues Login-/MFA-Verfahren", "stated_range": "Medium/High", "resolution": "Keine Abgrenzungsbedingung im PDF; nur als TOM-Trigger dokumentiert." },
+    { "id": "amb-many-customers", "subject": "Viele Kunden", "stated_range": "High", "resolution": "Das PDF nennt keinen numerischen Schwellenwert; nicht automatisch operationalisiert." },
+    { "id": "amb-possible-documents", "subject": "Dokumente mit ggf.-Angabe", "stated_range": "bedingt", "resolution": "Als possible_documents gespeichert und ohne weitere Bedingung nicht automatisch zu affected_documents hinzugefügt." }
+  ]
+}

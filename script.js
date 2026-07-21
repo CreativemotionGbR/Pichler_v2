@@ -114,41 +114,6 @@
     "Sonstiges / Unklar",
   ];
   const YES_NO_UNKNOWN = ["Ja", "Nein", "Unklar"];
-  const HIGH_CHANGE_TYPES = new Set([
-    "Neuer Dienstleister",
-    "Wechsel Dienstleister",
-    "Neuer Subunternehmer",
-    "Freelancer mit Zugriff",
-    "API-Änderung",
-    "Infrastrukturänderung",
-    "Rechte-/Rollenkonzept geändert",
-    "Verschlüsselung geändert",
-    "Neues System",
-    "Datenschutzvorfall / Sicherheitsereignis",
-  ]);
-  // "Backup geändert" ist laut Regelkatalog Medium/High: Basis Medium (siehe
-  // MEDIUM_CHANGE_TYPES), Hochstufung auf High über die allgemeinen Regeln.
-  const MEDIUM_CHANGE_TYPES = new Set([
-    "Software-Update mit Datenbezug",
-    "API entfernt",
-    "Backup geändert",
-    "System wird abgeschaltet",
-  ]);
-  const AVV_CHANGE_TYPES = new Set([
-    "Neuer Dienstleister",
-    "Wechsel Dienstleister",
-    "Neuer Subunternehmer",
-    "Freelancer mit Zugriff",
-  ]);
-  const TOM_CHANGE_TYPES = new Set([
-    "Software-Update mit Datenbezug",
-    "Backup geändert",
-    "Rechte-/Rollenkonzept geändert",
-    "Verschlüsselung geändert",
-    "Infrastrukturänderung",
-    "System wird abgeschaltet",
-    "Datenschutzvorfall / Sicherheitsereignis",
-  ]);
   const FALLBACK_SAMPLE_CHANGES = [
     {
       change_id: "CHG-001",
@@ -268,6 +233,7 @@
     },
   ];
   let history = [];
+  let centralRules = null;
   let customerAvvs = [];
   let selectedCustomerAvvId = "";
   let lastEvaluation = null;
@@ -306,6 +272,20 @@
       showMessage("storageWarning", "localStorage ist nicht verfügbar. Bewertungen funktionieren, aber gespeicherte Daten bleiben nach dem Schließen möglicherweise nicht erhalten.", "warning");
     }
 
+    try {
+      centralRules = await loadCentralRules();
+    } catch (error) {
+      console.error("Zentrales Regelwerk konnte nicht geladen werden:", error);
+      showMessage(
+        "validationErrors",
+        `Das zentrale Regelwerk konnte nicht geladen werden. Bewertungen und CSV-Import sind deaktiviert. Bitte öffne die App über einen lokalen Webserver und prüfe data/rules.json.<br>${escapeHtml(error.message)}`,
+        "danger"
+      );
+      $("evaluateBtn").disabled = true;
+      $("loadSamplesBtn").disabled = true;
+      $("csvUpload").disabled = true;
+    }
+
     history = loadHistory();
     $("change_id").value = nextChangeId();
     customerAvvs = loadCustomerAvvs();
@@ -317,7 +297,25 @@
     bindEvents();
     setupCollapsibleSections();
     enhanceYesNoFields();
-    if (history.length === 0) loadSampleData(true);
+    if (history.length === 0 && centralRules) await loadSampleData(true);
+  }
+
+  async function loadCentralRules() {
+    if (!globalThis.DsgvoRulesEngine?.evaluateChange) {
+      throw new Error("Die zentrale JavaScript-Regel-Engine ist nicht verfügbar.");
+    }
+    const response = await fetch("data/rules.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status} beim Laden des Regelwerks.`);
+    const rules = await response.json();
+    if (!rules || typeof rules !== "object" || !rules.change_types || !rules.impact_model) {
+      throw new Error("Das geladene Regelwerk besitzt nicht die erwartete Struktur.");
+    }
+    return rules;
+  }
+
+  function evaluateWithCentralRules(change) {
+    if (!centralRules) throw new Error("Das zentrale Regelwerk ist nicht geladen.");
+    return globalThis.DsgvoRulesEngine.evaluateChange(change, centralRules);
   }
 
   const YES_NO_FIELDS = ["security_change", "personal_data", "customers_affected", "external_parties"];
@@ -552,64 +550,9 @@
       return;
     }
     hideMessage("validationErrors");
-    lastEvaluation = { ...change, ...evaluateChange(change) };
+    lastEvaluation = { ...change, ...evaluateWithCentralRules(change) };
     renderResult(lastEvaluation);
     $("saveBtn").disabled = false;
-  }
-
-  function evaluateChange(change) {
-    const warnings = [];
-    let score = 1;
-    const changeType = change.change_type;
-    const customerCount = Number(change.number_of_customers || 0);
-
-    if (change.external_parties === "Ja" && change.personal_data === "Ja") score = Math.max(score, 3);
-    if (HIGH_CHANGE_TYPES.has(changeType)) score = Math.max(score, 3);
-    if (MEDIUM_CHANGE_TYPES.has(changeType)) score = Math.max(score, 2);
-    if (change.customers_affected === "Ja" && customerCount > 10) score = Math.max(score, 3);
-
-    const gdprFields = [change.security_change, change.personal_data, change.customers_affected, change.external_parties];
-    if (gdprFields.includes("Unklar")) score = Math.max(score, 2);
-    if (!KNOWN_CHANGE_TYPES.includes(changeType) || changeType === "Sonstiges / Unklar") {
-      score = Math.max(score, 2);
-      warnings.push("Änderungstyp ist unbekannt oder unklar; manuelle Prüfung erforderlich.");
-    }
-    if (
-      change.personal_data === "Nein" &&
-      change.external_parties === "Nein" &&
-      change.customers_affected === "Nein" &&
-      change.security_change === "Nein" &&
-      score === 1
-    ) {
-      score = 1;
-    }
-    if (change.old_text && change.new_text && change.old_text === change.new_text) {
-      warnings.push("Alter und neuer Text sind identisch; keine Textänderung erkannt.");
-    }
-
-    const impact = score === 3 ? "High" : score === 2 ? "Medium" : "Low";
-    const avv = isAvvAffected(change);
-    const tom = isTomAffected(change);
-    const customerInfo = impact === "High" && change.customers_affected === "Ja";
-    const documents = ["Änderungshistorie"];
-    if (avv) documents.push("AVV");
-    if (tom) documents.push("TOM");
-    if (customerInfo) documents.push("Kundeninformation");
-    if (change.change_type === "Datenschutzvorfall / Sicherheitsereignis") documents.push("Incident-Dokumentation");
-
-    const measures = deriveMeasures(change, documents, impact, customerInfo);
-    const manualReview = impact !== "Low" || warnings.length > 0;
-
-    return {
-      impact_level: impact,
-      gdpr_relevance: impact === "Low" ? "Keine direkte DSGVO-Relevanz" : "DSGVO-relevant",
-      affected_documents: documents,
-      measures,
-      customer_information_required: customerInfo,
-      manual_review_required: manualReview,
-      summary: `${change.change_type} wurde als ${impact} bewertet. Betroffene Dokumente: ${documents.join(", ")}.`,
-      warnings,
-    };
   }
 
   function buildSummary(change, impact, documents) {
@@ -678,47 +621,6 @@
   function formatList(items) {
     if (items.length <= 1) return items[0] || "";
     return `${items.slice(0, -1).join(", ")} und ${items[items.length - 1]}`;
-  }
-
-  function isAvvAffected(change) {
-    return AVV_CHANGE_TYPES.has(change.change_type) ||
-      (change.external_parties === "Ja" && change.personal_data === "Ja") ||
-      (change.change_type === "Neues System" && change.personal_data === "Ja") ||
-      change.change_type === "System wird abgeschaltet";
-  }
-
-  function isTomAffected(change) {
-    return change.security_change === "Ja" ||
-      TOM_CHANGE_TYPES.has(change.change_type) ||
-      (change.change_type === "Neues System" && change.personal_data === "Ja") ||
-      (change.change_type === "API entfernt" && change.personal_data === "Ja");
-  }
-
-  function deriveMeasures(change, documents, impact, customerInfo) {
-    const measures = [];
-    if (documents.includes("AVV")) {
-      measures.push("AVV prüfen", "AVV aktualisieren");
-      if (["Neuer Dienstleister", "Wechsel Dienstleister"].includes(change.change_type)) measures.push("AVV neu abschließen");
-      if (change.change_type === "Neuer Subunternehmer") measures.push("Subunternehmerliste prüfen");
-      if (change.personal_data === "Ja") measures.push("Datenarten aktualisieren");
-    }
-    if (documents.includes("TOM")) {
-      measures.push("Zugriffskontrolle prüfen");
-      if (["Rechte-/Rollenkonzept geändert", "Datenschutzvorfall / Sicherheitsereignis"].includes(change.change_type)) measures.push("Zugangskontrolle prüfen");
-      if (change.change_type === "Verschlüsselung geändert") measures.push("Verschlüsselung prüfen");
-      if (change.change_type === "Backup geändert") measures.push("Backup-Konzept prüfen");
-      if (change.change_type === "Infrastrukturänderung") measures.push("Netzwerk-/Firewallregel prüfen");
-      if (change.change_type === "Datenschutzvorfall / Sicherheitsereignis") measures.push("Protokollierung prüfen");
-    }
-    if (customerInfo) {
-      measures.push("Kundeninformation vorbereiten", "Mail-Template generieren");
-    } else {
-      measures.push("keine Kundeninfo nötig");
-    }
-    if (impact === "Medium" || impact === "High") measures.push("interne Info vorbereiten");
-    if (impact === "Medium") measures.push("manuelle Prüfung durchführen");
-    if (change.email_subject || change.email_sender) measures.push("Anhang prüfen");
-    return [...new Set(measures)];
   }
 
   function saveLastEvaluation() {
@@ -837,7 +739,7 @@
       importRows(parseCsv(text), "CSV-Beispieldatei");
       if (isAutomatic) $("change_id").value = nextChangeId();
     } catch (error) {
-      const evaluated = FALLBACK_SAMPLE_CHANGES.map((change) => ({ ...change, ...evaluateChange(change), saved_at: new Date().toISOString() }));
+      const evaluated = FALLBACK_SAMPLE_CHANGES.map((change) => ({ ...change, ...evaluateWithCentralRules(change), saved_at: new Date().toISOString() }));
       history = [...history, ...evaluated];
       persistHistory();
       renderHistory();
@@ -884,7 +786,7 @@
         errors.push(`Zeile ${index + 2}: ${validationErrors.join("; ")}`);
         return;
       }
-      imported.push({ ...change, ...evaluateChange(change), saved_at: new Date().toISOString() });
+      imported.push({ ...change, ...evaluateWithCentralRules(change), saved_at: new Date().toISOString() });
     });
 
     if (imported.length) {
@@ -2035,9 +1937,6 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
   // Im Browser existiert kein `module`, daher der Guard – die App bleibt unberührt.
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
-      evaluateChange,
-      isAvvAffected,
-      isTomAffected,
       normalizeChange,
       validateChange,
       classifyEmailFields,
@@ -2047,8 +1946,6 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
       nbPredict,
       nlpFeatures,
       KNOWN_CHANGE_TYPES,
-      HIGH_CHANGE_TYPES,
-      MEDIUM_CHANGE_TYPES,
     };
   }
 })();

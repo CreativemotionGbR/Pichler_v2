@@ -10,7 +10,9 @@
 
 const assert = require("assert");
 const path = require("path");
-const { classifyEmailFields, extractAffectedSystems, evaluateChange } = require(path.join(__dirname, "..", "script.js"));
+const { classifyEmailFields, extractAffectedSystems } = require(path.join(__dirname, "..", "script.js"));
+const { evaluateChange } = require(path.join(__dirname, "..", "js", "rules-engine.js"));
+const rules = require(path.join(__dirname, "..", "data", "rules.json"));
 
 let passed = 0;
 const failures = [];
@@ -104,7 +106,7 @@ function evaluateMail(body) {
     { change_id: "REAL", date: "2026-01-01", description: body, affected_systems: extractAffectedSystems(body), number_of_customers: 0 },
     fields
   );
-  return { fields, result: evaluateChange(change) };
+  return { fields, result: evaluateChange(change, rules) };
 }
 
 check("Reale Mail 1 (Druckserver-Update) -> Low, alles Nein", () => {

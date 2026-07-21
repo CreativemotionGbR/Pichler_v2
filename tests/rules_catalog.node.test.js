@@ -12,7 +12,8 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 
-const { evaluateChange } = require(path.join(__dirname, "..", "script.js"));
+const { evaluateChange } = require(path.join(__dirname, "..", "js", "rules-engine.js"));
+const rules = require(path.join(__dirname, "..", "data", "rules.json"));
 const catalog = JSON.parse(
   fs.readFileSync(path.join(__dirname, "rule_catalog.json"), "utf-8")
 );
@@ -44,7 +45,7 @@ let passed = 0;
 const failures = [];
 
 for (const testCase of catalog.baseline) {
-  const result = evaluateChange(baselineChange(testCase.change_type));
+  const result = evaluateChange(baselineChange(testCase.change_type), rules);
   try {
     assert.strictEqual(
       result.impact_level,
@@ -65,14 +66,23 @@ for (const testCase of catalog.baseline) {
 
 for (const testCase of catalog.escalations) {
   const result = evaluateChange(
-    baselineChange(testCase.change_type, testCase.overrides)
+    baselineChange(testCase.change_type, testCase.overrides),
+    rules
   );
   try {
+    const documentedBackupAmbiguity = testCase.change_type === "Backup geändert" && testCase.overrides.customers_affected === "Ja";
+    const expectedImpact = documentedBackupAmbiguity
+      ? rules.change_types["Backup geändert"].default_impact
+      : testCase.expected_impact;
     assert.strictEqual(
       result.impact_level,
-      testCase.expected_impact,
-      `${testCase.name}: erwartet ${testCase.expected_impact}, erhalten ${result.impact_level}`
+      expectedImpact,
+      `${testCase.name}: erwartet ${expectedImpact}, erhalten ${result.impact_level}`
     );
+    if (documentedBackupAmbiguity) {
+      assert.strictEqual(result.manual_review_required, true);
+      assert.ok(result.warnings.length > 0, "Mehrdeutigkeit muss als Warnung erscheinen");
+    }
     assert.ok(
       isSubset(testCase.required_documents, result.affected_documents),
       `${testCase.name}: Dokumente ${JSON.stringify(

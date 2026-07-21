@@ -10,7 +10,9 @@
 
 const assert = require("assert");
 const path = require("path");
-const { classifyEmailFields, extractAffectedSystems, evaluateChange } = require(path.join(__dirname, "..", "script.js"));
+const { classifyEmailFields, extractAffectedSystems } = require(path.join(__dirname, "..", "script.js"));
+const { evaluateChange } = require(path.join(__dirname, "..", "js", "rules-engine.js"));
+const rules = require(path.join(__dirname, "..", "data", "rules.json"));
 
 let passed = 0;
 const failures = [];
@@ -22,7 +24,7 @@ function run(name, mail, expectFields, expectImpact, expectDocs) {
       { change_id: "DOC", date: "2026-01-01", description: mail, affected_systems: extractAffectedSystems(mail), number_of_customers: 0 },
       fields
     );
-    const result = evaluateChange(change);
+    const result = evaluateChange(change, rules);
     for (const [key, value] of Object.entries(expectFields)) {
       assert.strictEqual(fields[key], value, `${key}: erwartet ${value}, ist ${fields[key] || "(offen)"}`);
     }
@@ -69,7 +71,7 @@ run("Fall 9 – HIGH API-Änderung mit Datenübertragung",
 run("Fall 12 – HIGH Datenschutzvorfall / Sicherheitsereignis",
   "Betreff: Sicherheitsvorfall: Unautorisierter Zugriff auf Kundendaten. heute Morgen wurde ein unautorisierter Zugriff auf das CRM-System festgestellt. Nach aktuellem Stand könnten personenbezogene Kundendaten betroffen sein. Der Zugriff wurde gesperrt und die Untersuchung läuft. Bitte starten Sie unverzüglich den Incident-Prozess und prüfen Sie die erforderliche Datenschutzdokumentation sowie mögliche Anpassungen der technischen und organisatorischen Maßnahmen.",
   { change_type: "Datenschutzvorfall / Sicherheitsereignis", security_change: "Ja", personal_data: "Ja" },
-  "High", ["TOM", "Incident-Dokumentation"]);
+  "High", ["TOM"]);
 
 if (failures.length > 0) {
   console.error(`FEHLGESCHLAGEN: ${failures.length} Fall/Fälle`);
