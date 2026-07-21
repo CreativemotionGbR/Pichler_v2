@@ -10,7 +10,7 @@
 
 const assert = require("assert");
 const path = require("path");
-const { classifyEmailFields } = require(path.join(__dirname, "..", "script.js"));
+const { classifyEmailFields, extractAffectedSystems, evaluateChange } = require(path.join(__dirname, "..", "script.js"));
 
 let passed = 0;
 const failures = [];
@@ -83,6 +83,50 @@ check("H: Rollen/Berechtigungen -> Sicherheit Ja + Rechte-/Rollenkonzept geände
   const f = classifyEmailFields("", MAILS.H);
   assert.strictEqual(f.security_change, "Ja");
   assert.strictEqual(f.change_type, "Rechte-/Rollenkonzept geändert");
+});
+
+// --- Echte Beispiel-Mails (anonymisiert) als End-to-End-Regressionstests ---
+const REAL_1 = `Hallo zusammen,
+auf den internen Druckservern wird die Drucksoftware auf Version 2.8 aktualisiert.
+Die Aktualisierung dient ausschließlich der Fehlerbehebung und Stabilität. Es werden keine personenbezogenen Daten verarbeitet. Es sind keine Kunden betroffen. Es werden keine externen Dienstleister eingebunden. Zugriffe, Berechtigungen und Sicherheitsmaßnahmen bleiben unverändert.
+Viele Grüße
+IT-Abteilung`;
+
+const REAL_2 = `Hallo zusammen,
+ab dem 01.08.2026 wird für unser Kundenportal ein neuer Hosting-Dienstleister eingesetzt.
+Der Dienstleister erhält Zugriff auf personenbezogene Kundendaten, darunter Namen, E-Mail-Adressen und Vertragsdaten. Vor der Inbetriebnahme muss ein neuer Auftragsverarbeitungsvertrag abgeschlossen werden. Bitte prüfen Sie außerdem die technischen und organisatorischen Maßnahmen und dokumentieren Sie den neuen Dienstleister.
+Viele Grüße
+Einkauf & Datenschutz`;
+
+function evaluateMail(body) {
+  const fields = classifyEmailFields("", body);
+  const change = Object.assign(
+    { change_id: "REAL", date: "2026-01-01", description: body, affected_systems: extractAffectedSystems(body), number_of_customers: 0 },
+    fields
+  );
+  return { fields, result: evaluateChange(change) };
+}
+
+check("Reale Mail 1 (Druckserver-Update) -> Low, alles Nein", () => {
+  const { fields, result } = evaluateMail(REAL_1);
+  assert.strictEqual(fields.personal_data, "Nein");
+  assert.strictEqual(fields.customers_affected, "Nein");
+  assert.strictEqual(fields.external_parties, "Nein");
+  assert.strictEqual(fields.security_change, "Nein");
+  assert.strictEqual(fields.change_type, "Software-Update ohne Datenbezug");
+  assert.strictEqual(result.impact_level, "Low");
+});
+
+check("Reale Mail 2 (neuer Hosting-Dienstleister mit Kundendaten) -> High + AVV/TOM/Kundeninfo", () => {
+  const { fields, result } = evaluateMail(REAL_2);
+  assert.strictEqual(fields.personal_data, "Ja");
+  assert.strictEqual(fields.customers_affected, "Ja");
+  assert.strictEqual(fields.external_parties, "Ja");
+  assert.strictEqual(fields.change_type, "Neuer Dienstleister");
+  assert.strictEqual(result.impact_level, "High");
+  assert.ok(result.affected_documents.includes("AVV"), "AVV erwartet");
+  assert.ok(result.affected_documents.includes("TOM"), "TOM erwartet");
+  assert.ok(result.affected_documents.includes("Kundeninformation"), "Kundeninformation erwartet");
 });
 
 if (failures.length > 0) {
