@@ -3,7 +3,12 @@ import vm from "node:vm";
 
 export async function loadScriptTestApi() {
   const scriptUrl = new URL("../../script.js", import.meta.url);
-  const source = await readFile(scriptUrl, "utf8");
+  const source = (await readFile(scriptUrl, "utf8"))
+    .replace(
+      /^import\s+\{\s*evaluateChange\s*\}\s+from\s+"\.\/js\/rules-engine\.js";\s*/,
+      ""
+    )
+    .replaceAll("import.meta.url", JSON.stringify(scriptUrl.href));
   const closingMarker = "})();";
   const closingIndex = source.lastIndexOf(closingMarker);
 
@@ -14,7 +19,6 @@ export async function loadScriptTestApi() {
   const testExport = `
 globalThis.__scriptTestApi = {
   classifyEmailFields,
-  evaluateChange,
   extractAffectedSystems,
 };
 `;

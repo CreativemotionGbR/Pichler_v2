@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { evaluateChange } from "../js/rules-engine.js";
 import { loadScriptTestApi } from "./helpers/load-script-test-api.js";
 
-const { classifyEmailFields, extractAffectedSystems, evaluateChange } =
-  await loadScriptTestApi();
+const { classifyEmailFields, extractAffectedSystems } = await loadScriptTestApi();
+const rules = JSON.parse(
+  await readFile(new URL("../data/rules.json", import.meta.url), "utf8")
+);
 
 const druckserverMail = [
   "auf den internen Druckservern wird die Drucksoftware auf Version 2.8 aktualisiert.",
@@ -40,7 +44,7 @@ test("Druckserver-Update: Gesamtbewertung ist Low", () => {
     },
     fields
   );
-  const result = evaluateChange(change);
+  const result = evaluateChange(change, rules);
   assert.equal(result.impact_level, "Low");
   assert.deepEqual(Array.from(result.affected_documents), ["Änderungshistorie"]);
 });
