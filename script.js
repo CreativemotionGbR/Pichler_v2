@@ -1072,7 +1072,10 @@
     if (systems) $("affected_systems").value = systems;
     else if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
     const fields = classifyEmailFields(parsed.subject, emailBody);
-    if (fields.change_type) $("change_type").value = fields.change_type;
+    // Kann der Änderungstyp nicht bestimmt werden, ehrlich "Sonstiges / Unklar"
+    // setzen (löst Medium + manuelle Prüfung aus) statt die erste Auswahl stehen
+    // zu lassen, die wie eine sichere Zuordnung aussähe.
+    $("change_type").value = fields.change_type || "Sonstiges / Unklar";
     ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
       if (fields[field]) $(field).value = fields[field];
     });
@@ -1080,9 +1083,144 @@
     appendNoteOnce("E-Mail-Inhalt wurde automatisch vorbelegt; bitte vor dem Speichern prüfen.");
   }
 
+  // ------------------------------------------------------------------
+  // Lokale Ähnlichkeits-Klassifikation (kNN / nächster Schwerpunkt).
+  // Ergänzt die deterministischen Regeln: erkennt Umschreibungen, bei denen die
+  // exakten Schlüsselwörter fehlen (z. B. "Stammdaten unserer Kunden" -> Daten).
+  // Läuft vollständig lokal – kein Modell-Download, keine externen Dienste.
+  // ------------------------------------------------------------------
+
+  // Wortstämme für die Kompositazerlegung im Deutschen: taucht ein Stamm als
+  // Teilzeichenkette in einem Token auf, wird er als zusätzliches Merkmal
+  // ergänzt ("kundendaten" -> kunden + daten; "druckersoftware" -> software).
+  const SIM_STEMS = [
+    "personenbezog", "stammdaten", "kundendaten", "kunden", "daten", "dienstleister",
+    "subunternehmer", "unterauftragnehmer", "freelancer", "extern", "anbieter", "provider",
+    "cloud", "hosting", "server", "netzwerk", "firewall", "backup", "recovery",
+    "wiederherstellung", "verschlüssel", "krypto", "rollen", "rechte", "berechtigung",
+    "zugriff", "zugang", "login", "authentifizier", "sicherheit", "software",
+    "update", "aktualisier", "patch", "version", "schnittstelle", "system",
+    "tool", "incident", "vorfall", "datenverlust", "datenpanne", "mitarbeiter",
+    "protokoll", "logging", "monitoring", "abgeschaltet", "stillgelegt", "wartung",
+  ];
+
+  const SIM_STOPWORDS = new Set([
+    "und", "oder", "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen",
+    "einem", "einer", "wird", "werden", "wurde", "ist", "sind", "war", "waren", "auf",
+    "für", "von", "mit", "bei", "aus", "sich", "auch", "nicht", "kein", "keine", "keinen",
+    "wir", "sie", "uns", "unsere", "unseren", "unserer", "dass", "zum", "zur", "als",
+    "ab", "der", "es", "sowie", "bzw", "etc", "hallo", "grüße", "dort", "über",
+    // Generische Flexionswörter würden die Ähnlichkeit verrauschen ("neue" käme
+    // in vielen Referenztexten vor); daher hier ausgeschlossen.
+    "neu", "neue", "neuer", "neuen", "neues", "neuem",
+  ]);
+
+  function simTokenize(text) {
+    const tokens = [];
+    String(text || "").toLowerCase().replace(/[^a-zäöüß]+/g, " ").split(/\s+/).forEach((token) => {
+      if (token.length < 3 || SIM_STOPWORDS.has(token)) return;
+      tokens.push(token);
+      SIM_STEMS.forEach((stem) => { if (token !== stem && token.includes(stem)) tokens.push(stem); });
+    });
+    return tokens;
+  }
+
+  function simVector(text) {
+    const map = new Map();
+    simTokenize(text).forEach((token) => map.set(token, (map.get(token) || 0) + 1));
+    return map;
+  }
+
+  function simCosine(a, b) {
+    let dot = 0;
+    a.forEach((weight, token) => { if (b.has(token)) dot += weight * b.get(token); });
+    let na = 0; a.forEach((w) => { na += w * w; });
+    let nb = 0; b.forEach((w) => { nb += w * w; });
+    return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+  }
+
+  // Referenztexte je Feld: aus dem Regelkatalog abgeleitet + typische Formulierungen.
+  const FIELD_REFERENCES = {
+    personal_data: {
+      yes: "personenbezogene daten werden verarbeitet gespeichert übertragen kundendaten stammdaten unserer kunden namen adressen kontaktdaten mitarbeiterdaten vertragsdaten abrechnungsdaten",
+      no: "keine personenbezogenen daten werden verarbeitet keine kundendaten rein technisch ohne personenbezug anonymisiert",
+    },
+    customers_affected: {
+      yes: "kunden sind betroffen kundendaten betroffen stammdaten unserer kunden betrifft mehrere kunden mandanten auswirkungen auf kunden kundenkonten",
+      no: "keine kunden betroffen es sind keine kunden betroffen rein interne änderung ohne kundenbezug",
+    },
+    external_parties: {
+      yes: "externer dienstleister subunternehmer freelancer beteiligt neuer cloud anbieter provider hosting anbieter externe firma erhält zugriff auftragsverarbeiter eingebunden",
+      no: "keine externen dienstleister beteiligt rein intern keine externen beteiligten kein externer zugriff eigenbetrieb",
+    },
+    security_change: {
+      yes: "zugriffsrechte rollen berechtigungen werden geändert angepasst verschlüsselung krypto kryptoverfahren aes tls firewall backup wird geändert eingeführt login authentifizierung sicherheitsmaßnahmen angepasst geschützt",
+      no: "sicherheitsmaßnahmen bleiben unverändert zugriffe berechtigungen rollen bleiben unverändert keine änderung an sicherheitsmaßnahmen",
+    },
+  };
+
+  const FIELD_VECTORS = Object.fromEntries(
+    Object.entries(FIELD_REFERENCES).map(([field, refs]) => [field, { yes: simVector(refs.yes), no: simVector(refs.no) }])
+  );
+
+  const SIM_NOISE = 0.06;   // darunter: kein erkennbares Signal -> Feld offen lassen
+  const SIM_MARGIN = 0.03;  // Mindestabstand Ja/Nein, sonst "Unklar"
+
+  function classifyFieldSimilarity(text, field) {
+    const vectors = FIELD_VECTORS[field];
+    if (!vectors) return null;
+    const vec = simVector(text);
+    const simYes = simCosine(vec, vectors.yes);
+    const simNo = simCosine(vec, vectors.no);
+    if (Math.max(simYes, simNo) < SIM_NOISE) return null;   // kein Signal -> nicht raten
+    if (simYes - simNo > SIM_MARGIN) return "Ja";
+    if (simNo - simYes > SIM_MARGIN) return "Nein";
+    return "Unklar";                                        // Signal, aber nicht eindeutig
+  }
+
+  // Referenztexte je Änderungstyp (aus dem Regelkatalog + Synonyme).
+  const CHANGE_TYPE_REFERENCES = {
+    "Neuer Dienstleister": "neuer cloud hosting support software anbieter dienstleister extern verarbeitet daten eingeführt beauftragt",
+    "Wechsel Dienstleister": "anbieter dienstleister wird ersetzt gewechselt vertragspartner wechsel",
+    "Neuer Subunternehmer": "anbieter setzt neuen subunternehmer unterauftragnehmer ein",
+    "Freelancer mit Zugriff": "externer freelancer bekommt zugriff auf kundendaten systeme",
+    "Software-Update ohne Datenbezug": "bugfix technische wartung update aktualisierung version ohne datenbezug stabilität fehlerbehebung",
+    "Software-Update mit Datenbezug": "neue funktion verarbeitet kundendaten personenbezogene daten update mit datenbezug",
+    "API-Änderung": "neue schnittstelle api neue datenfelder datenübertragung angebunden",
+    "API entfernt": "schnittstelle api wird deaktiviert entfernt abgeschaltet",
+    "Infrastrukturänderung": "server netzwerk firewall hosting infrastruktur umgebung migriert",
+    "Backup geändert": "backup ort frequenz wiederherstellung recovery geändert",
+    "Rechte-/Rollenkonzept geändert": "neue rollen berechtigungen rechte rollenkonzept zugriffskontrolle angepasst",
+    "Verschlüsselung geändert": "verschlüsselung neue entfernte krypto aes tls umgestellt",
+    "Neues System": "neues tool system anwendung verarbeitet personenbezogene daten eingeführt",
+    "System wird abgeschaltet": "tool system wird abgeschaltet stillgelegt nicht mehr genutzt außer betrieb",
+    "Datenschutzvorfall / Sicherheitsereignis": "unautorisierter zugriff datenverlust sicherheitsvorfall incident datenpanne",
+  };
+
+  const CHANGE_TYPE_VECTORS = Object.entries(CHANGE_TYPE_REFERENCES).map(([type, ref]) => [type, simVector(ref)]);
+  const CHANGE_TYPE_MIN_SIM = 0.13;   // Mindestähnlichkeit für eine Zuordnung
+  const CHANGE_TYPE_MARGIN = 0.03;    // Vorsprung vor dem zweitbesten Treffer
+
+  function classifyChangeTypeSimilarity(text) {
+    const vec = simVector(text);
+    let best = null;
+    let bestScore = 0;
+    let secondScore = 0;
+    CHANGE_TYPE_VECTORS.forEach(([type, refVec]) => {
+      const score = simCosine(vec, refVec);
+      if (score > bestScore) { secondScore = bestScore; bestScore = score; best = type; }
+      else if (score > secondScore) { secondScore = score; }
+    });
+    // Nur zuordnen, wenn der Treffer deutlich ist – sonst kein Rateversuch.
+    return bestScore >= CHANGE_TYPE_MIN_SIM && bestScore - secondScore >= CHANGE_TYPE_MARGIN
+      ? { type: best, score: bestScore }
+      : null;
+  }
+
   // Leitet die Ja/Nein-Felder und den Änderungstyp aus dem E-Mail-Text ab.
   // Berücksichtigt Verneinungen ("keine ...", "bleiben unverändert"), damit z.B.
   // "Sicherheitsmaßnahmen bleiben unverändert" NICHT als Sicherheitsänderung gilt.
+  // Für Felder, die keine Regel entscheidet, greift die lokale Ähnlichkeit.
   function classifyEmailFields(subject, body) {
     const text = `${subject || ""} ${body || ""}`.toLowerCase();
     const fields = {};
@@ -1134,6 +1272,24 @@
       else if (/firewall|netzwerk|hosting|\bserver\b/.test(text)) fields.change_type = "Infrastrukturänderung";
       else if (/backup/.test(text)) fields.change_type = "Backup geändert";
       else if (/rollen|rechte|berechtigung/.test(text)) fields.change_type = "Rechte-/Rollenkonzept geändert";
+    }
+
+    // Fallback: lokale Ähnlichkeit für Felder, die keine Regel entschieden hat.
+    // Erkennt Umschreibungen; bei zu geringer Sicherheit -> "Unklar" statt raten.
+    ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
+      if (fields[field]) return;
+      const guess = classifyFieldSimilarity(text, field);
+      if (guess) fields[field] = guess;
+    });
+
+    if (!fields.change_type) {
+      const guessed = classifyChangeTypeSimilarity(text);
+      if (guessed) {
+        fields.change_type =
+          guessed.type === "Software-Update ohne Datenbezug" && fields.personal_data === "Ja"
+            ? "Software-Update mit Datenbezug"
+            : guessed.type;
+      }
     }
 
     return fields;
@@ -1804,6 +1960,8 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
       validateChange,
       classifyEmailFields,
       extractAffectedSystems,
+      classifyFieldSimilarity,
+      classifyChangeTypeSimilarity,
       KNOWN_CHANGE_TYPES,
       HIGH_CHANGE_TYPES,
       MEDIUM_CHANGE_TYPES,
