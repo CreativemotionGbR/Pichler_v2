@@ -1,0 +1,58 @@
+{
+  "_source": "DSGVO_Grundlogik_Regelwerk_3.xlsx – Blatt 'Regelkatalog' und 'AVV vs TOM'",
+  "_note": "Gemeinsame Wahrheitstabelle für die Python- (src/rules.py) und JS-Regel-Engine (script.js). 'min_impact' ist die feste Mindesteinstufung je Änderungstyp; für eine Basiseingabe (alle Ja/Nein-Felder = 'Nein') entspricht sie der tatsächlichen Bewertung. 'required_documents' listet nur die im Regelkatalog eindeutig (ohne 'ggf.' / Slash) geforderten Dokumente; die Tests prüfen sie als Teilmenge.",
+  "baseline": [
+    { "change_type": "Neuer Dienstleister", "min_impact": "High", "required_documents": ["AVV"] },
+    { "change_type": "Wechsel Dienstleister", "min_impact": "High", "required_documents": ["AVV"] },
+    { "change_type": "Neuer Subunternehmer", "min_impact": "High", "required_documents": ["AVV"] },
+    { "change_type": "Freelancer mit Zugriff", "min_impact": "High", "required_documents": ["AVV"] },
+    { "change_type": "Software-Update ohne Datenbezug", "min_impact": "Low", "required_documents": [] },
+    { "change_type": "Software-Update mit Datenbezug", "min_impact": "Medium", "required_documents": ["TOM"] },
+    { "change_type": "API-Änderung", "min_impact": "High", "required_documents": [] },
+    { "change_type": "API entfernt", "min_impact": "Medium", "required_documents": [] },
+    { "change_type": "Infrastrukturänderung", "min_impact": "High", "required_documents": ["TOM"] },
+    { "change_type": "Backup geändert", "min_impact": "Medium", "required_documents": ["TOM"] },
+    { "change_type": "Rechte-/Rollenkonzept geändert", "min_impact": "High", "required_documents": ["TOM"] },
+    { "change_type": "Verschlüsselung geändert", "min_impact": "High", "required_documents": ["TOM"] },
+    { "change_type": "Neues System", "min_impact": "High", "required_documents": [] },
+    { "change_type": "System wird abgeschaltet", "min_impact": "Medium", "required_documents": [] },
+    { "change_type": "Datenschutzvorfall / Sicherheitsereignis", "min_impact": "High", "required_documents": ["TOM"] }
+  ],
+  "escalations": [
+    {
+      "name": "Software-Update mit Datenbezug wird durch externe Beteiligte + Daten High",
+      "change_type": "Software-Update mit Datenbezug",
+      "overrides": { "external_parties": "Ja", "personal_data": "Ja" },
+      "expected_impact": "High",
+      "required_documents": ["AVV", "TOM"]
+    },
+    {
+      "name": "Backup geändert wird durch viele betroffene Kunden High",
+      "change_type": "Backup geändert",
+      "overrides": { "customers_affected": "Ja", "number_of_customers": 25 },
+      "expected_impact": "High",
+      "required_documents": ["TOM"]
+    },
+    {
+      "name": "API entfernt bleibt ohne weitere Auslöser Medium",
+      "change_type": "API entfernt",
+      "overrides": { "personal_data": "Ja" },
+      "expected_impact": "Medium",
+      "required_documents": []
+    },
+    {
+      "name": "Low-Änderung mit unklarem Feld wird Medium",
+      "change_type": "Software-Update ohne Datenbezug",
+      "overrides": { "personal_data": "Unklar" },
+      "expected_impact": "Medium",
+      "required_documents": []
+    },
+    {
+      "name": "Neues System mit personenbezogenen Daten zieht AVV und TOM",
+      "change_type": "Neues System",
+      "overrides": { "personal_data": "Ja" },
+      "expected_impact": "High",
+      "required_documents": ["AVV", "TOM"]
+    }
+  ]
+}

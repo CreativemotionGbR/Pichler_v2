@@ -121,10 +121,18 @@
     "Freelancer mit Zugriff",
     "API-Änderung",
     "Infrastrukturänderung",
-    "Backup geändert",
     "Rechte-/Rollenkonzept geändert",
     "Verschlüsselung geändert",
+    "Neues System",
     "Datenschutzvorfall / Sicherheitsereignis",
+  ]);
+  // "Backup geändert" ist laut Regelkatalog Medium/High: Basis Medium (siehe
+  // MEDIUM_CHANGE_TYPES), Hochstufung auf High über die allgemeinen Regeln.
+  const MEDIUM_CHANGE_TYPES = new Set([
+    "Software-Update mit Datenbezug",
+    "API entfernt",
+    "Backup geändert",
+    "System wird abgeschaltet",
   ]);
   const AVV_CHANGE_TYPES = new Set([
     "Neuer Dienstleister",
@@ -267,18 +275,23 @@
   let avvPreviewUrl = "";
 
   const $ = (id) => document.getElementById(id);
-  const form = $("changeForm");
+  // In Browsern wird die Oberfläche initialisiert; unter Node (Tests) fehlt das
+  // DOM, dann bleibt nur die reine Regel-Logik nutzbar (siehe module.exports).
+  const hasDom = typeof document !== "undefined";
+  const form = hasDom ? $("changeForm") : null;
 
-  document.addEventListener("DOMContentLoaded", init);
-  document.addEventListener("DOMContentLoaded", () => {
-    try {
-      renderStaticTom();
+  if (hasDom) {
+    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      try {
+        renderStaticTom();
 
-      document.getElementById("reloadSampleTomBtn")?.addEventListener("click", resetEditedTom);
-    } catch (error) {
-      console.error("Statische TOM konnte nicht angezeigt werden:", error);
-    }
-  });
+        document.getElementById("reloadSampleTomBtn")?.addEventListener("click", resetEditedTom);
+      } catch (error) {
+        console.error("Statische TOM konnte nicht angezeigt werden:", error);
+      }
+    });
+  }
 
   async function init() {
     populateSelect("change_type", KNOWN_CHANGE_TYPES);
@@ -479,8 +492,7 @@
 
     if (change.external_parties === "Ja" && change.personal_data === "Ja") score = Math.max(score, 3);
     if (HIGH_CHANGE_TYPES.has(changeType)) score = Math.max(score, 3);
-    if (changeType === "Neues System" && change.personal_data === "Ja") score = Math.max(score, 3);
-    if (["Software-Update mit Datenbezug", "API entfernt", "System wird abgeschaltet"].includes(changeType)) score = Math.max(score, 2);
+    if (MEDIUM_CHANGE_TYPES.has(changeType)) score = Math.max(score, 2);
     if (change.customers_affected === "Ja" && customerCount > 10) score = Math.max(score, 3);
 
     const gdprFields = [change.security_change, change.personal_data, change.customers_affected, change.external_parties];
@@ -981,20 +993,96 @@
     $("source").value = "Manuell eingefügte E-Mail";
     if (!$("description").value.trim()) $("description").value = parsed.body || originalText;
     if (!$("change_id").value.trim()) $("change_id").value = `EMAIL-${Date.now()}`;
-    if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
-    const combined = `${parsed.subject} ${parsed.body}`.toLowerCase();
-    const facts = {
-      personalData: classifyPersonalData(combined),
-      customersAffected: classifyCustomersAffected(combined),
-      externalParties: classifyExternalParties(combined),
-      securityChange: classifySecurityChange(combined),
-    };
-    $("personal_data").value = facts.personalData;
-    $("customers_affected").value = facts.customersAffected;
-    $("external_parties").value = facts.externalParties;
-    $("security_change").value = facts.securityChange;
-    $("change_type").value = detectEmailChangeType(combined, facts);
-    appendNoteOnce("E-Mail-Inhalt wurde manuell übernommen; vor dem Speichern prüfen.");
+    const emailBody = parsed.body || originalText;
+    const systems = extractAffectedSystems(emailBody);
+    if (systems) $("affected_systems").value = systems;
+    else if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
+    const fields = classifyEmailFields(parsed.subject, emailBody);
+    if (fields.change_type) $("change_type").value = fields.change_type;
+    ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
+      if (fields[field]) $(field).value = fields[field];
+    });
+    appendNoteOnce("E-Mail-Inhalt wurde automatisch vorbelegt; bitte vor dem Speichern prüfen.");
+  }
+
+  // Leitet die Ja/Nein-Felder und den Änderungstyp aus dem E-Mail-Text ab.
+  // Berücksichtigt Verneinungen ("keine ...", "bleiben unverändert"), damit z.B.
+  // "Sicherheitsmaßnahmen bleiben unverändert" NICHT als Sicherheitsänderung gilt.
+  function classifyEmailFields(subject, body) {
+    const text = `${subject || ""} ${body || ""}`.toLowerCase();
+    const fields = {};
+
+    // Personenbezogene Daten
+    if (/\b(kein|keine|keinen)\b[^.]*personenbezogen/.test(text) || /\bohne\b[^.]*personenbezug/.test(text)) {
+      fields.personal_data = "Nein";
+    } else if (/personenbezogen\w*\s+daten/.test(text) || /\bkundendaten\b/.test(text) || /\bpersonenbezug\b/.test(text)) {
+      fields.personal_data = "Ja";
+    }
+
+    // Kunden betroffen
+    if (/\b(kein|keine|keinen)\b[^.]*\bkunden/.test(text)) {
+      fields.customers_affected = "Nein";
+    } else if (/\bkunden(daten)?\b[^.]*betroffen/.test(text) || /betrifft[^.]*\bkunden/.test(text)) {
+      fields.customers_affected = "Ja";
+    }
+
+    // Externe Beteiligte
+    if (mentionsNewProvider(text) || mentionsNewSubprocessor(text)) {
+      fields.external_parties = "Ja";
+    } else if (/\b(kein|keine|keinen)\b[^.]*(extern\w*|dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider|freelancer)/.test(text) || hasExternalNegation(text)) {
+      fields.external_parties = "Nein";
+    } else if (/\bfreelancer\b/.test(text) || /extern\w*\s+(dienstleister|beteiligt\w*|partner|zugriff\w*)/.test(text)) {
+      fields.external_parties = "Ja";
+    }
+
+    // Sicherheitsänderung – Verneinung schlägt Schlüsselwort
+    const securityUnchanged =
+      /(zugriff\w*|berechtigung\w*|rollen|rechte|sicherheitsmaßnahme\w*|verschlüsselung|firewall|backup)[^.]*\b(bleiben|bleibt|sind|ist)\s+unverändert/.test(text) ||
+      /\b(kein|keine|keinen)\b[^.]*änderung\w*[^.]*(sicherheit|zugriff|berechtigung|rollen|rechte|verschlüsselung|firewall|backup)/.test(text) ||
+      /(sicherheit\w*|zugriff\w*|berechtigung\w*|verschlüsselung|firewall|backup)[^.]*(nicht\s+(geändert|verändert)|unverändert)/.test(text);
+    if (securityUnchanged) {
+      fields.security_change = "Nein";
+    } else if (containsSecurityHint(text)) {
+      fields.security_change = "Ja";
+    }
+
+    // Änderungstyp nach Regelwerk
+    const isUpdate = /\b(update\w*|aktualisier\w+|patch\w*|bugfix\w*|fehlerbehebung|release\w*|upgrade\w*|hotfix\w*)\b/.test(text) || /\bversion\s*[\d.]/.test(text);
+    if (mentionsNewSubprocessor(text)) {
+      fields.change_type = "Neuer Subunternehmer";
+    } else if (mentionsNewProvider(text)) {
+      fields.change_type = "Neuer Dienstleister";
+    } else if (isUpdate) {
+      fields.change_type = fields.personal_data === "Ja" ? "Software-Update mit Datenbezug" : "Software-Update ohne Datenbezug";
+    } else if (fields.security_change === "Ja") {
+      if (/verschlüsselung/.test(text)) fields.change_type = "Verschlüsselung geändert";
+      else if (/firewall|netzwerk|hosting|\bserver\b/.test(text)) fields.change_type = "Infrastrukturänderung";
+      else if (/backup/.test(text)) fields.change_type = "Backup geändert";
+      else if (/rollen|rechte|berechtigung/.test(text)) fields.change_type = "Rechte-/Rollenkonzept geändert";
+    }
+
+    return fields;
+  }
+
+  // Best-effort-Extraktion betroffener Systeme aus dem Klartext der E-Mail:
+  // erkennt großgeschriebene Komposita auf typische IT-Endungen (Server, Software, ...).
+  function extractAffectedSystems(body) {
+    if (!body) return "";
+    const matches = body.match(
+      /\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]*(?:server|software|system(?:e)?|anwendung(?:en)?|datenbank(?:en)?|cloud|api|schnittstelle(?:n)?|dienst(?:e)?|plattform(?:en)?|tool(?:s)?|hosting|portal(?:e)?|modul(?:e)?)(?:e|en|n|s)?\b/g
+    );
+    if (!matches) return "";
+    const seen = new Set();
+    const out = [];
+    for (const raw of matches) {
+      const cleaned = raw.replace(/ern$/, "er");
+      const key = cleaned.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(cleaned);
+      }
+    }
+    return out.join(", ");
   }
 
   function extractDisplayDate(value) {
@@ -1044,35 +1132,6 @@
       /(dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider).{0,80}(ändert sich nicht|ändern sich nicht|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert|keine änderung)/i.test(text);
   }
 
-  function mentionsProviderChange(text) {
-    if (hasExternalNegation(text)) return false;
-    return /(wechsel|ersetzt|ablösung|abgelöst).{0,60}(dienstleister|anbieter|provider)|(dienstleister|anbieter|provider).{0,60}(wechselt|gewechselt|ersetzt|abgelöst)/i.test(text);
-  }
-
-  function mentionsFreelancerAccess(text) {
-    return /(freelancer|freiberufler|externe[rn]?).{0,60}(zugriff|berechtigung)|(zugriff|berechtigung).{0,60}(freelancer|freiberufler)/i.test(text) && !hasExternalNegation(text);
-  }
-
-  function detectEmailChangeType(text, facts) {
-    if (/(datenschutzvorfall|sicherheitsvorfall|sicherheitsereignis|datenpanne|unautorisiert(?:er|en)?\s+zugriff|datenverlust)/i.test(text)) return "Datenschutzvorfall / Sicherheitsereignis";
-    if (mentionsProviderChange(text)) return "Wechsel Dienstleister";
-    if (mentionsNewSubprocessor(text)) return "Neuer Subunternehmer";
-    if (mentionsNewProvider(text)) return "Neuer Dienstleister";
-    if (mentionsFreelancerAccess(text)) return "Freelancer mit Zugriff";
-    if (/(system|tool|anwendung|archivsystem).{0,60}(abgeschaltet|stillgelegt|deaktiviert|außer betrieb|nicht mehr genutzt)|(abschaltung|stilllegung|außerbetriebnahme).{0,60}(system|tool|anwendung|archivsystem)/i.test(text)) return "System wird abgeschaltet";
-    if (/(api|schnittstelle|endpunkt).{0,60}(entfernt|deaktiviert|abgeschaltet|stillgelegt|entfällt)|(entfernung|abschaltung|stilllegung).{0,60}(api|schnittstelle|endpunkt)/i.test(text)) return "API entfernt";
-    if (/(api|schnittstelle|endpunkt).{0,60}(geändert|angepasst|erweitert|neu|neue datenfelder)|(änderung|anpassung|erweiterung).{0,60}(api|schnittstelle|endpunkt)/i.test(text)) return "API-Änderung";
-    if (facts.securityChange === "Ja" && /verschlüsselung.{0,60}(geändert|angepasst|eingeführt|entfernt|umgestellt)|(änderung|anpassung|umstellung).{0,60}verschlüsselung/i.test(text)) return "Verschlüsselung geändert";
-    if (facts.securityChange === "Ja" && /(rechte|rollen|berechtigungen).{0,60}(geändert|angepasst|eingeführt|entfernt)|(änderung|anpassung).{0,60}(rechte|rollen|berechtigungen)/i.test(text)) return "Rechte-/Rollenkonzept geändert";
-    if (facts.securityChange === "Ja" && /(backup|datensicherung|wiederherstellung).{0,60}(geändert|angepasst|umgestellt|verlegt)|(änderung|anpassung|umstellung).{0,60}(backup|datensicherung|wiederherstellung)/i.test(text)) return "Backup geändert";
-    if (/(infrastruktur|server|hosting|firewall|netzwerk).{0,60}(geändert|angepasst|umgestellt|migriert)|(änderung|anpassung|umstellung|migration).{0,60}(infrastruktur|server|hosting|firewall|netzwerk)/i.test(text)) return "Infrastrukturänderung";
-    if (/(software[-\s]?update|update|bugfix|patch|wartung)/i.test(text)) {
-      if (facts.personalData === "Nein") return "Software-Update ohne Datenbezug";
-      if (facts.personalData === "Ja") return "Software-Update mit Datenbezug";
-    }
-    if (!/(kein|keine|keinen|ohne).{0,30}(neues|neuen|neue).{0,30}(system|tool|anwendung)/i.test(text) && /(neues|neuen|neue).{0,30}(system|tool|anwendung)/i.test(text)) return "Neues System";
-    return "Sonstiges / Unklar";
-  }
 
   function appendNoteOnce(note) {
     const current = $("notes").value.trim();
@@ -1675,5 +1734,22 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  // Reine Regel-Logik für automatisierte Tests unter Node exportieren.
+  // Im Browser existiert kein `module`, daher der Guard – die App bleibt unberührt.
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      evaluateChange,
+      isAvvAffected,
+      isTomAffected,
+      normalizeChange,
+      validateChange,
+      classifyEmailFields,
+      extractAffectedSystems,
+      KNOWN_CHANGE_TYPES,
+      HIGH_CHANGE_TYPES,
+      MEDIUM_CHANGE_TYPES,
+    };
   }
 })();

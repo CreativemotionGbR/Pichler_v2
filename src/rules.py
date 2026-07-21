@@ -21,14 +21,26 @@ KNOWN_CHANGE_TYPES = [
 
 YES_NO_UNKNOWN = ["Ja", "Nein", "Unklar"]
 
-HIGH_CHANGE_TYPES = {
-    "Neuer Dienstleister",
-    "Wechsel Dienstleister",
-    "Neuer Subunternehmer",
-    "Freelancer mit Zugriff",
-    "Rechte-/Rollenkonzept geändert",
-    "Verschlüsselung geändert",
-    "Datenschutzvorfall / Sicherheitsereignis",
+# Feste Mindesteinstufung je Änderungstyp aus dem Blatt "Regelkatalog" der
+# DSGVO-Grundlogik. 3 = High, 2 = Medium, 1 = Low. Die eigentliche Bewertung
+# darf durch weitere Bedingungen (externe Beteiligte + Daten, viele Kunden,
+# Unklarheiten) nur nach oben, nie unter diese Basis fallen.
+CHANGE_TYPE_BASE_IMPACT = {
+    "Neuer Dienstleister": 3,
+    "Wechsel Dienstleister": 3,
+    "Neuer Subunternehmer": 3,
+    "Freelancer mit Zugriff": 3,
+    "Software-Update ohne Datenbezug": 1,
+    "Software-Update mit Datenbezug": 2,
+    "API-Änderung": 3,
+    "API entfernt": 2,
+    "Infrastrukturänderung": 3,
+    "Backup geändert": 2,
+    "Rechte-/Rollenkonzept geändert": 3,
+    "Verschlüsselung geändert": 3,
+    "Neues System": 3,
+    "System wird abgeschaltet": 2,
+    "Datenschutzvorfall / Sicherheitsereignis": 3,
 }
 
 TOM_KEYWORDS = [
@@ -36,6 +48,18 @@ TOM_KEYWORDS = [
     "hosting", "server", "mfa", "login", "monitoring", "logging",
     "verfügbarkeit", "availability", "incident", "sicherheitsereignis",
 ]
+
+# Änderungstypen, die laut Regelkatalog immer TOM-relevant sind
+# (Blatt "AVV vs TOM" / "Regelkatalog"). Deckungsgleich mit script.js.
+TOM_CHANGE_TYPES = {
+    "Software-Update mit Datenbezug",
+    "Backup geändert",
+    "Rechte-/Rollenkonzept geändert",
+    "Verschlüsselung geändert",
+    "Infrastrukturänderung",
+    "System wird abgeschaltet",
+    "Datenschutzvorfall / Sicherheitsereignis",
+}
 
 AVV_CHANGE_TYPES = {
     "Neuer Dienstleister",
@@ -66,15 +90,29 @@ def is_avv_affected(change: dict) -> bool:
     change_type = change.get("change_type", "")
     text = _text(change)
     external_with_data = change.get("external_parties") == "Ja" and change.get("personal_data") == "Ja"
+    new_system_with_data = change_type == "Neues System" and change.get("personal_data") == "Ja"
     keyword_match = any(word in text for word in ["dienstleister", "subunternehmer", "freelancer", "drittland", "datenart"])
-    return change_type in AVV_CHANGE_TYPES or external_with_data or keyword_match
+    return (
+        change_type in AVV_CHANGE_TYPES
+        or external_with_data
+        or new_system_with_data
+        or change_type == "System wird abgeschaltet"
+        or keyword_match
+    )
 
 
 def is_tom_affected(change: dict) -> bool:
     text = _text(change)
     change_type = change.get("change_type", "")
     api_with_data = change_type in {"API-Änderung", "API entfernt"} and change.get("personal_data") == "Ja"
-    return change.get("security_change") == "Ja" or api_with_data or any(keyword in text for keyword in TOM_KEYWORDS)
+    new_system_with_data = change_type == "Neues System" and change.get("personal_data") == "Ja"
+    return (
+        change.get("security_change") == "Ja"
+        or change_type in TOM_CHANGE_TYPES
+        or api_with_data
+        or new_system_with_data
+        or any(keyword in text for keyword in TOM_KEYWORDS)
+    )
 
 
 def classify_impact(change: dict) -> tuple[str, list[str]]:
@@ -82,15 +120,11 @@ def classify_impact(change: dict) -> tuple[str, list[str]]:
     warnings = []
     impact_score = 1
     change_type = change.get("change_type", "")
-    text = _text(change)
+
+    # Feste Mindesteinstufung aus dem Regelkatalog je Änderungstyp.
+    impact_score = max(impact_score, CHANGE_TYPE_BASE_IMPACT.get(change_type, 1))
 
     if change.get("external_parties") == "Ja" and change.get("personal_data") == "Ja":
-        impact_score = max(impact_score, 3)
-    if change_type in HIGH_CHANGE_TYPES:
-        impact_score = max(impact_score, 3)
-    if change_type in {"API-Änderung", "API entfernt"} and change.get("personal_data") == "Ja":
-        impact_score = max(impact_score, 3)
-    if change_type == "Infrastrukturänderung" and any(word in text for word in ["hosting", "cloud", "server"]):
         impact_score = max(impact_score, 3)
     if change.get("customers_affected") == "Ja" and _as_int(change.get("number_of_customers")) > 10:
         impact_score = max(impact_score, 3)
