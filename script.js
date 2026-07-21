@@ -316,7 +316,58 @@
     loadWebScanResults();
     bindEvents();
     setupCollapsibleSections();
+    enhanceYesNoFields();
     if (history.length === 0) loadSampleData(true);
+  }
+
+  const YES_NO_FIELDS = ["security_change", "personal_data", "customers_affected", "external_parties"];
+
+  // Ersetzt die Ja/Nein/Unklar-Dropdowns visuell durch Segment-Buttons.
+  // Das <select> bleibt als Datenquelle erhalten (nur ausgeblendet), damit die
+  // bestehende Formularlogik unverändert weiterarbeitet.
+  function enhanceYesNoFields() {
+    YES_NO_FIELDS.forEach((id) => {
+      const select = $(id);
+      if (!select || select.dataset.enhanced) return;
+      const group = document.createElement("div");
+      group.className = "segmented";
+      group.setAttribute("role", "group");
+      const label = select.closest("label");
+      group.setAttribute("aria-label", label ? label.textContent.trim() : id);
+      YES_NO_UNKNOWN.forEach((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "segment";
+        button.dataset.value = option;
+        button.textContent = option;
+        button.addEventListener("click", () => {
+          select.value = option;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          syncSegments(id);
+        });
+        group.appendChild(button);
+      });
+      select.insertAdjacentElement("afterend", group);
+      select.hidden = true;
+      select.dataset.enhanced = "1";
+    });
+    syncAllSegments();
+  }
+
+  function syncSegments(id) {
+    const select = $(id);
+    if (!select) return;
+    const group = select.nextElementSibling;
+    if (!group || !group.classList.contains("segmented")) return;
+    group.querySelectorAll(".segment").forEach((button) => {
+      const active = button.dataset.value === select.value;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  function syncAllSegments() {
+    YES_NO_FIELDS.forEach(syncSegments);
   }
 
   // Aufklappbare Hauptbereiche: Klicks auf Buttons/Eingaben in der Kopfzeile
@@ -962,6 +1013,7 @@
     populateSelect("personal_data", YES_NO_UNKNOWN, "Nein");
     populateSelect("customers_affected", YES_NO_UNKNOWN, "Nein");
     populateSelect("external_parties", YES_NO_UNKNOWN, "Nein");
+    syncAllSegments();
     $("change_id").value = nextChangeId();
     $("date").value = formatDateForDisplay(new Date().toISOString().slice(0, 10));
     $("source").value = "Manuelle Eingabe";
@@ -1024,6 +1076,7 @@
     ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
       if (fields[field]) $(field).value = fields[field];
     });
+    syncAllSegments();
     appendNoteOnce("E-Mail-Inhalt wurde automatisch vorbelegt; bitte vor dem Speichern prüfen.");
   }
 

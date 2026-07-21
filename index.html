@@ -44,23 +44,28 @@
       <div id="validationErrors" class="alert danger hidden"></div>
 
       <form id="changeForm" novalidate>
-        <div class="grid two">
-          <label>Änderungs-ID *
-            <input id="change_id" name="change_id" type="text" placeholder="CHG-001" required>
+        <div class="form-group">
+          <p class="form-group-title">Basisdaten</p>
+          <div class="grid two">
+            <label>Änderungs-ID *
+              <input id="change_id" name="change_id" type="text" placeholder="CHG-001" required>
+            </label>
+            <label>Datum *
+              <input id="date" name="date" type="text" inputmode="numeric" placeholder="TT.MM.JJJJ" required>
+            </label>
+          </div>
+
+          <label>Änderungstyp *
+            <select id="change_type" name="change_type" required></select>
           </label>
-          <label>Datum *
-            <input id="date" name="date" type="text" inputmode="numeric" placeholder="TT.MM.JJJJ" required>
+
+          <label>Beschreibung *
+            <textarea id="description" name="description" rows="4" placeholder="Beschreibe die technische Änderung." required></textarea>
           </label>
         </div>
 
-        <label>Änderungstyp *
-          <select id="change_type" name="change_type" required></select>
-        </label>
-
-        <label>Beschreibung *
-          <textarea id="description" name="description" rows="4" placeholder="Beschreibe die technische Änderung." required></textarea>
-        </label>
-
+        <div class="form-group">
+          <p class="form-group-title">Sicherheit &amp; Betroffene</p>
         <div class="grid two">
           <label>Sicherheitsänderung *
             <select id="security_change" name="security_change" required></select>
@@ -81,7 +86,10 @@
             <select id="external_parties" name="external_parties" required></select>
           </label>
         </div>
+        </div>
 
+        <div class="form-group">
+          <p class="form-group-title">Kontext &amp; Textvergleich</p>
         <div class="grid three">
           <label>Quelle
             <input id="source" name="source" type="text" placeholder="Manuelle Eingabe">
@@ -106,6 +114,7 @@
         <label>Notizen
           <textarea id="notes" name="notes" rows="3"></textarea>
         </label>
+        </div>
 
         <details class="email-box">
           <summary>Optional: E-Mail-Text oder .eml-Datei manuell übernehmen</summary>
