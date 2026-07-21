@@ -1083,138 +1083,210 @@
     appendNoteOnce("E-Mail-Inhalt wurde automatisch vorbelegt; bitte vor dem Speichern prüfen.");
   }
 
-  // ------------------------------------------------------------------
-  // Lokale Ähnlichkeits-Klassifikation (kNN / nächster Schwerpunkt).
-  // Ergänzt die deterministischen Regeln: erkennt Umschreibungen, bei denen die
-  // exakten Schlüsselwörter fehlen (z. B. "Stammdaten unserer Kunden" -> Daten).
-  // Läuft vollständig lokal – kein Modell-Download, keine externen Dienste.
-  // ------------------------------------------------------------------
+  // ==================================================================
+  // Lokales, trainiertes Modell für die E-Mail-Zuordnung.
+  // Naive-Bayes-Klassifikator über Wort- UND Zeichen-n-Gramm-Merkmale
+  // (fastText-Prinzip). Die Zeichen-n-Gramme fangen deutsche Wortformen und
+  // Komposita ab ("kundendaten" ~ "kunden" ~ "stammdaten"), sodass auch
+  // Umschreibungen erkannt werden, in denen die exakten Wörter fehlen.
+  //
+  // Das Modell wird beim Laden aus einem kompakten, aus dem Regelkatalog
+  // abgeleiteten Trainingskorpus IM BROWSER trainiert (wenige Millisekunden) –
+  // daher kein Modell-Download, keine externen Dienste, keine fetch/CORS-Fragen.
+  // ==================================================================
 
-  // Wortstämme für die Kompositazerlegung im Deutschen: taucht ein Stamm als
-  // Teilzeichenkette in einem Token auf, wird er als zusätzliches Merkmal
-  // ergänzt ("kundendaten" -> kunden + daten; "druckersoftware" -> software).
-  const SIM_STEMS = [
-    "personenbezog", "stammdaten", "kundendaten", "kunden", "daten", "dienstleister",
-    "subunternehmer", "unterauftragnehmer", "freelancer", "extern", "anbieter", "provider",
-    "cloud", "hosting", "server", "netzwerk", "firewall", "backup", "recovery",
-    "wiederherstellung", "verschlüssel", "krypto", "rollen", "rechte", "berechtigung",
-    "zugriff", "zugang", "login", "authentifizier", "sicherheit", "software",
-    "update", "aktualisier", "patch", "version", "schnittstelle", "system",
-    "tool", "incident", "vorfall", "datenverlust", "datenpanne", "mitarbeiter",
-    "protokoll", "logging", "monitoring", "abgeschaltet", "stillgelegt", "wartung",
-  ];
-
-  const SIM_STOPWORDS = new Set([
-    "und", "oder", "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen",
-    "einem", "einer", "wird", "werden", "wurde", "ist", "sind", "war", "waren", "auf",
-    "für", "von", "mit", "bei", "aus", "sich", "auch", "nicht", "kein", "keine", "keinen",
-    "wir", "sie", "uns", "unsere", "unseren", "unserer", "dass", "zum", "zur", "als",
-    "ab", "der", "es", "sowie", "bzw", "etc", "hallo", "grüße", "dort", "über",
-    // Generische Flexionswörter würden die Ähnlichkeit verrauschen ("neue" käme
-    // in vielen Referenztexten vor); daher hier ausgeschlossen.
-    "neu", "neue", "neuer", "neuen", "neues", "neuem",
-  ]);
-
-  function simTokenize(text) {
-    const tokens = [];
-    String(text || "").toLowerCase().replace(/[^a-zäöüß]+/g, " ").split(/\s+/).forEach((token) => {
-      if (token.length < 3 || SIM_STOPWORDS.has(token)) return;
-      tokens.push(token);
-      SIM_STEMS.forEach((stem) => { if (token !== stem && token.includes(stem)) tokens.push(stem); });
+  // Merkmalsextraktion: Wort-Unigramme + Zeichen-3/4-Gramme je Wort.
+  function nlpFeatures(text) {
+    const features = [];
+    String(text || "").toLowerCase().replace(/[^a-zäöüß0-9]+/g, " ").split(/\s+/).forEach((word) => {
+      if (word.length < 2) return;
+      features.push("w:" + word);
+      const padded = "^" + word + "$";
+      for (let n = 3; n <= 4; n += 1) {
+        for (let i = 0; i + n <= padded.length; i += 1) features.push("c:" + padded.slice(i, i + n));
+      }
     });
-    return tokens;
+    return features;
   }
 
-  function simVector(text) {
-    const map = new Map();
-    simTokenize(text).forEach((token) => map.set(token, (map.get(token) || 0) + 1));
-    return map;
+  // Multinomialer Naive-Bayes: zählt Merkmale je Klasse, Laplace-Glättung.
+  function nbTrain(examples) {
+    const classDocs = {};
+    const classFeatureCounts = {};
+    const classFeatureTotal = {};
+    const vocab = new Set();
+    examples.forEach(({ text, label }) => {
+      classDocs[label] = (classDocs[label] || 0) + 1;
+      classFeatureCounts[label] = classFeatureCounts[label] || Object.create(null);
+      nlpFeatures(text).forEach((feature) => {
+        classFeatureCounts[label][feature] = (classFeatureCounts[label][feature] || 0) + 1;
+        classFeatureTotal[label] = (classFeatureTotal[label] || 0) + 1;
+        vocab.add(feature);
+      });
+    });
+    return { classDocs, classFeatureCounts, classFeatureTotal, vocabSize: vocab.size, total: examples.length };
   }
 
-  function simCosine(a, b) {
-    let dot = 0;
-    a.forEach((weight, token) => { if (b.has(token)) dot += weight * b.get(token); });
-    let na = 0; a.forEach((w) => { na += w * w; });
-    let nb = 0; b.forEach((w) => { nb += w * w; });
-    return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+  function nbPredict(model, text) {
+    const features = nlpFeatures(text);
+    const classes = Object.keys(model.classDocs);
+    const logScores = classes.map((label) => {
+      let logScore = Math.log(model.classDocs[label] / model.total);
+      const counts = model.classFeatureCounts[label];
+      const denom = model.classFeatureTotal[label] + model.vocabSize;
+      features.forEach((feature) => {
+        logScore += Math.log(((counts[feature] || 0) + 1) / denom);
+      });
+      return { label, logScore };
+    });
+    const maxLog = Math.max(...logScores.map((s) => s.logScore));
+    let sum = 0;
+    logScores.forEach((s) => { sum += Math.exp(s.logScore - maxLog); });
+    const ranked = logScores
+      .map((s) => ({ label: s.label, prob: Math.exp(s.logScore - maxLog) / sum }))
+      .sort((a, b) => b.prob - a.prob);
+    return ranked;
   }
 
-  // Referenztexte je Feld: aus dem Regelkatalog abgeleitet + typische Formulierungen.
-  const FIELD_REFERENCES = {
+  // --- Trainingskorpus über Vorlagen × Slots (aus dem Regelkatalog + Synonyme) ---
+  function nlpExpand(templates, slots) {
+    const out = [];
+    templates.forEach((template) => slots.forEach((slot) => out.push(template.replace("{X}", slot))));
+    return out;
+  }
+
+  // Relevanz-Gate je Feld: nur wenn die Mail wenigstens einen dieser Stämme
+  // enthält, gilt das Feld als "angesprochen" und wird überhaupt klassifiziert.
+  // Verhindert Falsch-Positive bei Feldern, die die Mail gar nicht erwähnt.
+  const FIELD_GATES = {
+    personal_data: ["daten", "person", "kunde", "mitarbeiter", "adresse", "kontakt", "name",
+      "konto", "bank", "gesundheit", "vertrag", "bestell", "telefon", "mail", "profil"],
+    customers_affected: ["kunde", "mandant", "auftraggeber", "endkunde", "kundschaft"],
+    external_parties: ["extern", "dienstleister", "subunternehmer", "unterauftragnehmer", "freelancer",
+      "anbieter", "provider", "cloud", "hosting", "auftragsverarbeiter", "partner", "lieferant", "firma"],
+    security_change: ["zugriff", "zugang", "rolle", "recht", "berechtigung", "verschlüssel", "krypto",
+      "firewall", "backup", "login", "mfa", "authentifiz", "sicherheit", "passwort", "protokoll", "netzwerk"],
+  };
+
+  const DOMAIN_STEMS = Array.from(new Set([].concat(...Object.values(FIELD_GATES),
+    ["update", "aktualisier", "version", "software", "system", "api", "schnittstelle", "server",
+      "migr", "abschalt", "stillgel", "vorfall", "incident", "wartung", "patch", "release", "tool"])));
+
+  function containsAnyStem(text, stems) {
+    const lower = String(text || "").toLowerCase();
+    return stems.some((stem) => lower.includes(stem));
+  }
+
+  const FIELD_SPECS = {
     personal_data: {
-      yes: "personenbezogene daten werden verarbeitet gespeichert übertragen kundendaten stammdaten unserer kunden namen adressen kontaktdaten mitarbeiterdaten vertragsdaten abrechnungsdaten",
-      no: "keine personenbezogenen daten werden verarbeitet keine kundendaten rein technisch ohne personenbezug anonymisiert",
+      slots: ["personenbezogene daten", "kundendaten", "stammdaten unserer kunden", "namen und adressen",
+        "kontaktdaten", "mitarbeiterdaten", "vertragsdaten", "bestellhistorien", "kontaktinformationen",
+        "gesundheitsdaten", "e mail adressen", "telefonnummern", "bankverbindungen", "persönliche daten"],
+      pos: ["es werden {X} verarbeitet", "das system speichert {X}", "die anwendung verarbeitet {X}",
+        "{X} werden gespeichert", "wir erfassen {X}", "dabei fallen {X} an", "{X} werden ausgewertet"],
+      neg: ["es werden keine {X} verarbeitet", "ohne verarbeitung von {X}", "{X} sind nicht betroffen",
+        "keine {X} werden gespeichert", "es fallen keine {X} an", "rein technisch ohne {X}"],
     },
     customers_affected: {
-      yes: "kunden sind betroffen kundendaten betroffen stammdaten unserer kunden betrifft mehrere kunden mandanten auswirkungen auf kunden kundenkonten",
-      no: "keine kunden betroffen es sind keine kunden betroffen rein interne änderung ohne kundenbezug",
+      slots: ["kunden", "kundendaten", "mehrere kunden", "unsere mandanten", "kundenkonten", "auftraggeber",
+        "endkunden", "betroffene kunden"],
+      pos: ["{X} sind betroffen", "die änderung betrifft {X}", "auswirkungen auf {X}",
+        "{X} müssen informiert werden", "{X} werden beeinträchtigt", "stammdaten der kunden sind betroffen"],
+      neg: ["keine {X} sind betroffen", "{X} sind nicht betroffen", "ohne bezug zu {X}",
+        "es sind keine {X} betroffen", "rein interne änderung ohne {X}"],
     },
     external_parties: {
-      yes: "externer dienstleister subunternehmer freelancer beteiligt neuer cloud anbieter provider hosting anbieter externe firma erhält zugriff auftragsverarbeiter eingebunden",
-      no: "keine externen dienstleister beteiligt rein intern keine externen beteiligten kein externer zugriff eigenbetrieb",
+      slots: ["ein externer dienstleister", "ein neuer cloud anbieter", "ein subunternehmer", "ein freelancer",
+        "ein hosting anbieter", "eine externe firma", "ein auftragsverarbeiter", "ein unterauftragnehmer",
+        "ein externer partner"],
+      pos: ["{X} wird eingebunden", "{X} erhält zugriff", "wir beauftragen {X}", "{X} übernimmt den betrieb",
+        "zusammenarbeit mit {X}", "{X} wird hinzugezogen"],
+      neg: ["kein externer dienstleister ist beteiligt", "es sind keine externen beteiligten",
+        "rein intern ohne externe", "kein externer zugriff", "alles bleibt im eigenbetrieb", "keine externen partner"],
     },
     security_change: {
-      yes: "zugriffsrechte rollen berechtigungen werden geändert angepasst verschlüsselung krypto kryptoverfahren aes tls firewall backup wird geändert eingeführt login authentifizierung sicherheitsmaßnahmen angepasst geschützt",
-      no: "sicherheitsmaßnahmen bleiben unverändert zugriffe berechtigungen rollen bleiben unverändert keine änderung an sicherheitsmaßnahmen",
+      slots: ["zugriffsrechte", "rollen und berechtigungen", "die verschlüsselung", "ein kryptoverfahren",
+        "die firewall", "das backup konzept", "das login verfahren", "die mehrfaktor authentifizierung",
+        "die zugriffskontrolle", "die protokollierung", "die passwortrichtlinie"],
+      pos: ["{X} wird geändert", "{X} wird angepasst", "{X} wird neu eingeführt", "wir stellen {X} um",
+        "{X} wird verschärft", "{X} wird umgestellt"],
+      neg: ["{X} bleibt unverändert", "an {X} ändert sich nichts", "{X} wird nicht verändert",
+        "keine änderung an {X}", "{X} bleibt wie bisher"],
     },
   };
 
-  const FIELD_VECTORS = Object.fromEntries(
-    Object.entries(FIELD_REFERENCES).map(([field, refs]) => [field, { yes: simVector(refs.yes), no: simVector(refs.no) }])
+  // Ja/Nein-Beispiele je Feld (2 Klassen). Die Relevanz (ob das Feld überhaupt
+  // gemeint ist) klärt vorher das Gate – daher keine "Neutral"-Klasse nötig.
+  const FIELD_TRAINERS = Object.fromEntries(
+    Object.entries(FIELD_SPECS).map(([field, spec]) => [field, [
+      ...nlpExpand(spec.pos, spec.slots).map((text) => ({ text, label: "Ja" })),
+      ...nlpExpand(spec.neg, spec.slots).map((text) => ({ text, label: "Nein" })),
+    ]])
   );
 
-  const SIM_NOISE = 0.06;   // darunter: kein erkennbares Signal -> Feld offen lassen
-  const SIM_MARGIN = 0.03;  // Mindestabstand Ja/Nein, sonst "Unklar"
-
-  function classifyFieldSimilarity(text, field) {
-    const vectors = FIELD_VECTORS[field];
-    if (!vectors) return null;
-    const vec = simVector(text);
-    const simYes = simCosine(vec, vectors.yes);
-    const simNo = simCosine(vec, vectors.no);
-    if (Math.max(simYes, simNo) < SIM_NOISE) return null;   // kein Signal -> nicht raten
-    if (simYes - simNo > SIM_MARGIN) return "Ja";
-    if (simNo - simYes > SIM_MARGIN) return "Nein";
-    return "Unklar";                                        // Signal, aber nicht eindeutig
-  }
-
-  // Referenztexte je Änderungstyp (aus dem Regelkatalog + Synonyme).
-  const CHANGE_TYPE_REFERENCES = {
-    "Neuer Dienstleister": "neuer cloud hosting support software anbieter dienstleister extern verarbeitet daten eingeführt beauftragt",
-    "Wechsel Dienstleister": "anbieter dienstleister wird ersetzt gewechselt vertragspartner wechsel",
-    "Neuer Subunternehmer": "anbieter setzt neuen subunternehmer unterauftragnehmer ein",
-    "Freelancer mit Zugriff": "externer freelancer bekommt zugriff auf kundendaten systeme",
-    "Software-Update ohne Datenbezug": "bugfix technische wartung update aktualisierung version ohne datenbezug stabilität fehlerbehebung",
-    "Software-Update mit Datenbezug": "neue funktion verarbeitet kundendaten personenbezogene daten update mit datenbezug",
-    "API-Änderung": "neue schnittstelle api neue datenfelder datenübertragung angebunden",
-    "API entfernt": "schnittstelle api wird deaktiviert entfernt abgeschaltet",
-    "Infrastrukturänderung": "server netzwerk firewall hosting infrastruktur umgebung migriert",
-    "Backup geändert": "backup ort frequenz wiederherstellung recovery geändert",
-    "Rechte-/Rollenkonzept geändert": "neue rollen berechtigungen rechte rollenkonzept zugriffskontrolle angepasst",
-    "Verschlüsselung geändert": "verschlüsselung neue entfernte krypto aes tls umgestellt",
-    "Neues System": "neues tool system anwendung verarbeitet personenbezogene daten eingeführt",
-    "System wird abgeschaltet": "tool system wird abgeschaltet stillgelegt nicht mehr genutzt außer betrieb",
-    "Datenschutzvorfall / Sicherheitsereignis": "unautorisierter zugriff datenverlust sicherheitsvorfall incident datenpanne",
+  const CHANGE_TYPE_TRAINERS = {
+    "Neuer Dienstleister": ["wir binden einen neuen dienstleister ein", "ein neuer cloud anbieter wird beauftragt", "neuer hosting anbieter verarbeitet daten", "ein neuer softwareanbieter wird eingesetzt", "wir beauftragen eine externe firma"],
+    "Wechsel Dienstleister": ["wir wechseln den dienstleister", "der anbieter wird ersetzt", "wechsel des hosting anbieters", "der vertragspartner ändert sich", "ein anderer dienstleister übernimmt"],
+    "Neuer Subunternehmer": ["unser anbieter zieht einen subunternehmer hinzu", "ein weiterer unterauftragnehmer wird eingesetzt", "neuer subunternehmer für den support", "der dienstleister beauftragt einen subunternehmer"],
+    "Freelancer mit Zugriff": ["ein freelancer erhält zugriff auf systeme", "externer freelancer bekommt zugang zu kundendaten", "wir geben einem freelancer zugriff", "ein freier mitarbeiter erhält systemzugang"],
+    "Software-Update ohne Datenbezug": ["die software wird auf eine neue version aktualisiert", "wir spielen ein wartungsrelease ein", "bugfix und stabilitätsverbesserung ohne datenbezug", "technische aktualisierung ohne personenbezug", "reines software update zur fehlerbehebung"],
+    "Software-Update mit Datenbezug": ["neue funktion verarbeitet kundendaten", "das update verarbeitet personenbezogene daten", "erweiterung wertet kundendaten aus", "neue version speichert zusätzliche personendaten"],
+    "API-Änderung": ["eine neue schnittstelle wird angebunden", "die api überträgt neue datenfelder", "neue api schnittstelle zur datenübertragung", "wir ergänzen eine schnittstelle"],
+    "API entfernt": ["eine schnittstelle wird deaktiviert", "die api wird entfernt", "alte schnittstelle wird abgeschaltet", "wir deaktivieren eine api"],
+    "Infrastrukturänderung": ["der server wird migriert", "änderung an netzwerk und firewall", "wir wechseln die hosting umgebung", "die infrastruktur wird umgestellt"],
+    "Backup geändert": ["das backup konzept wird geändert", "neue frequenz für die datensicherung", "wiederherstellung und recovery werden angepasst", "der backup ort wird verändert"],
+    "Rechte-/Rollenkonzept geändert": ["neue rollen und berechtigungen werden vergeben", "das rollenkonzept wird angepasst", "änderung der zugriffskontrolle und rechte", "wir überarbeiten das berechtigungskonzept"],
+    "Verschlüsselung geändert": ["die verschlüsselung wird umgestellt", "wir führen ein stärkeres kryptoverfahren ein", "die ablage wird verschlüsselt geschützt", "änderung an der verschlüsselung aes tls"],
+    "Neues System": ["ein neues tool wird eingeführt", "wir führen ein neues system ein das daten verarbeitet", "neue anwendung für die verwaltung", "einführung eines neuen systems"],
+    "System wird abgeschaltet": ["ein system wird abgeschaltet", "das tool wird stillgelegt", "die anwendung wird außer betrieb genommen", "wir schalten ein altsystem ab"],
+    "Datenschutzvorfall / Sicherheitsereignis": ["es gab einen unautorisierten zugriff", "datenverlust durch ein sicherheitsereignis", "ein datenschutzvorfall ist aufgetreten", "sicherheitsvorfall mit datenpanne"],
   };
 
-  const CHANGE_TYPE_VECTORS = Object.entries(CHANGE_TYPE_REFERENCES).map(([type, ref]) => [type, simVector(ref)]);
-  const CHANGE_TYPE_MIN_SIM = 0.13;   // Mindestähnlichkeit für eine Zuordnung
-  const CHANGE_TYPE_MARGIN = 0.03;    // Vorsprung vor dem zweitbesten Treffer
+  const CHANGE_TYPE_EXAMPLES = Object.entries(CHANGE_TYPE_TRAINERS)
+    .flatMap(([label, texts]) => texts.map((text) => ({ text, label })));
 
-  function classifyChangeTypeSimilarity(text) {
-    const vec = simVector(text);
-    let best = null;
-    let bestScore = 0;
-    let secondScore = 0;
-    CHANGE_TYPE_VECTORS.forEach(([type, refVec]) => {
-      const score = simCosine(vec, refVec);
-      if (score > bestScore) { secondScore = bestScore; bestScore = score; best = type; }
-      else if (score > secondScore) { secondScore = score; }
-    });
-    // Nur zuordnen, wenn der Treffer deutlich ist – sonst kein Rateversuch.
-    return bestScore >= CHANGE_TYPE_MIN_SIM && bestScore - secondScore >= CHANGE_TYPE_MARGIN
-      ? { type: best, score: bestScore }
-      : null;
+  // Modelle werden faul (beim ersten Aufruf) trainiert und danach gecacht.
+  let _fieldModels = null;
+  let _changeTypeModel = null;
+  function fieldModel(field) {
+    if (!_fieldModels) {
+      _fieldModels = {};
+      Object.entries(FIELD_TRAINERS).forEach(([name, examples]) => { _fieldModels[name] = nbTrain(examples); });
+    }
+    return _fieldModels[field];
+  }
+  function changeTypeModel() {
+    if (!_changeTypeModel) _changeTypeModel = nbTrain(CHANGE_TYPE_EXAMPLES);
+    return _changeTypeModel;
+  }
+
+  const FIELD_MARGIN = 0.20;  // Vorsprung Ja vs. Nein, sonst "Unklar"
+
+  function classifyFieldModel(text, field) {
+    // Gate: spricht die Mail das Feld überhaupt an? Wenn nicht -> nicht raten.
+    if (!containsAnyStem(text, FIELD_GATES[field] || [])) return null;
+    const model = fieldModel(field);
+    if (!model) return null;
+    const ranked = nbPredict(model, text);
+    const probOf = (label) => { const r = ranked.find((entry) => entry.label === label); return r ? r.prob : 0; };
+    const ja = probOf("Ja");
+    const nein = probOf("Nein");
+    if (Math.abs(ja - nein) < FIELD_MARGIN) return "Unklar";  // angesprochen, aber nicht eindeutig
+    return ja > nein ? "Ja" : "Nein";
+  }
+
+  const CHANGE_TYPE_DECIDE = 0.30; // Mindestwahrscheinlichkeit
+  const CHANGE_TYPE_LEAD = 0.10;   // Vorsprung vor dem zweitbesten Typ
+
+  function classifyChangeTypeModel(text) {
+    // Ohne jeden Fachbezug (rein organisatorische Mail) keinen Typ raten.
+    if (!containsAnyStem(text, DOMAIN_STEMS)) return null;
+    const ranked = nbPredict(changeTypeModel(), text);
+    const [top, second] = ranked;
+    if (top.prob >= CHANGE_TYPE_DECIDE && top.prob - (second ? second.prob : 0) >= CHANGE_TYPE_LEAD) {
+      return { type: top.label, score: top.prob };
+    }
+    return null;
   }
 
   // Leitet die Ja/Nein-Felder und den Änderungstyp aus dem E-Mail-Text ab.
@@ -1274,16 +1346,17 @@
       else if (/rollen|rechte|berechtigung/.test(text)) fields.change_type = "Rechte-/Rollenkonzept geändert";
     }
 
-    // Fallback: lokale Ähnlichkeit für Felder, die keine Regel entschieden hat.
+    // Fallback: lokales NB-Modell für Felder, die keine Regel entschieden hat.
     // Erkennt Umschreibungen; bei zu geringer Sicherheit -> "Unklar" statt raten.
+    const modelText = `${subject || ""} ${body || ""}`;
     ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
       if (fields[field]) return;
-      const guess = classifyFieldSimilarity(text, field);
+      const guess = classifyFieldModel(modelText, field);
       if (guess) fields[field] = guess;
     });
 
     if (!fields.change_type) {
-      const guessed = classifyChangeTypeSimilarity(text);
+      const guessed = classifyChangeTypeModel(modelText);
       if (guessed) {
         fields.change_type =
           guessed.type === "Software-Update ohne Datenbezug" && fields.personal_data === "Ja"
@@ -1960,8 +2033,10 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
       validateChange,
       classifyEmailFields,
       extractAffectedSystems,
-      classifyFieldSimilarity,
-      classifyChangeTypeSimilarity,
+      classifyFieldModel,
+      classifyChangeTypeModel,
+      nbPredict,
+      nlpFeatures,
       KNOWN_CHANGE_TYPES,
       HIGH_CHANGE_TYPES,
       MEDIUM_CHANGE_TYPES,
