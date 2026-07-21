@@ -260,7 +260,6 @@
     },
   ];
   let history = [];
-  let currentTom = null;
   let customerAvvs = [];
   let selectedCustomerAvvId = "";
   let lastEvaluation = null;
@@ -296,7 +295,6 @@
 
     history = loadHistory();
     $("change_id").value = nextChangeId();
-    currentTom = null;
     customerAvvs = loadCustomerAvvs();
     renderHistory();
     renderTom();
@@ -878,12 +876,13 @@
   }
 
   function exportJson() {
+    const activeTom = getTomForDisplay();
     const backup = {
       exported_at: new Date().toISOString(),
       changes: history,
       change_history: history,
       document_library: [],
-      tom: currentTom,
+      tom: activeTom,
       customer_avvs: customerAvvs,
       versions: history.map((entry) => ({ change_id: entry.change_id, saved_at: entry.saved_at, impact_level: entry.impact_level })),
       change_suggestions: history.map((entry) => ({ change_id: entry.change_id, measures: entry.measures || [] })),
@@ -910,12 +909,11 @@
   function clearLocalData() {
     if (!confirm("Lokale Änderungshistorie wirklich löschen? Exportiere die Daten vorher, wenn du sie behalten möchtest.")) return;
     history = [];
-    currentTom = null;
     customerAvvs = [];
     selectedCustomerAvvId = "";
     if (isLocalStorageAvailable()) {
       localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(TOM_STORAGE_KEY);
+      localStorage.removeItem(EDITED_TOM_STORAGE_KEY);
       localStorage.removeItem(CUSTOMER_AVVS_STORAGE_KEY);
     }
     renderHistory();
@@ -985,19 +983,17 @@
     if (!$("change_id").value.trim()) $("change_id").value = `EMAIL-${Date.now()}`;
     if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
     const combined = `${parsed.subject} ${parsed.body}`.toLowerCase();
-    const newSubprocessor = mentionsNewSubprocessor(combined);
-    const newProvider = mentionsNewProvider(combined);
-    const securityChange = containsSecurityHint(combined);
-    if (newSubprocessor) $("change_type").value = "Neuer Subunternehmer";
-    else if (newProvider) $("change_type").value = "Neuer Dienstleister";
-    else if (securityChange) $("change_type").value = "Verschlüsselung geändert";
-    if (securityChange) $("security_change").value = "Ja";
-    if (mentionsPersonalDataContext(combined)) {
-      $("personal_data").value = "Ja";
-      $("customers_affected").value = "Ja";
-    }
-    if (newProvider || newSubprocessor) $("external_parties").value = "Ja";
-    else if (hasExternalNegation(combined)) $("external_parties").value = "Nein";
+    const facts = {
+      personalData: classifyPersonalData(combined),
+      customersAffected: classifyCustomersAffected(combined),
+      externalParties: classifyExternalParties(combined),
+      securityChange: classifySecurityChange(combined),
+    };
+    $("personal_data").value = facts.personalData;
+    $("customers_affected").value = facts.customersAffected;
+    $("external_parties").value = facts.externalParties;
+    $("security_change").value = facts.securityChange;
+    $("change_type").value = detectEmailChangeType(combined, facts);
     appendNoteOnce("E-Mail-Inhalt wurde manuell übernommen; vor dem Speichern prüfen.");
   }
 
@@ -1007,8 +1003,28 @@
     return match ? match[1] : "";
   }
 
-  function containsSecurityHint(text) {
-    return /\b(tom|verschlüsselung|aes[-\s]?\d+|tls|key-management|kryptografische schlüssel|backup-verschlüsselung|zugriff|rollen|rechte|protokollierung|backup|wiederherstellung|mfa|login|sicherheitsmaßnahmen|technisch-organisatorische maßnahmen)\b/i.test(text);
+  function classifyPersonalData(text) {
+    if (/(?:keine|keinen|ohne)\s+(?:verarbeitung\s+)?personenbezogene[nr]?\s+daten|personenbezogene[nr]?\s+daten.{0,50}(?:nicht|keine|keinen)\s+(?:verarbeitet|gespeichert|übertragen|genutzt|betroffen)/i.test(text)) return "Nein";
+    if (/(?:verarbeitet|speichert|überträgt|nutzt|enthält|zugriff\s+auf).{0,50}personenbezogene[nr]?\s+daten|personenbezogene[nr]?\s+daten.{0,50}(?:verarbeitet|gespeichert|übertragen|genutzt|betroffen)/i.test(text)) return "Ja";
+    return "Unklar";
+  }
+
+  function classifyCustomersAffected(text) {
+    if (/(?:keine|keinen)\s+(?:kunden|kundendaten).{0,30}(?:betroffen|beeinträchtigt)|(?:kunden|kundendaten).{0,40}(?:nicht|keine|keinen)\s+(?:betroffen|beeinträchtigt)/i.test(text)) return "Nein";
+    if (/(?:kunden|kundendaten).{0,30}(?:sind|werden)?\s*(?:betroffen|beeinträchtigt)|betrifft.{0,30}(?:kunden|kundendaten)/i.test(text)) return "Ja";
+    return "Unklar";
+  }
+
+  function classifyExternalParties(text) {
+    if (hasExternalNegation(text) || /(?:keine|ohne)\s+externe[nr]?\s+(?:beteiligte|dienstleister|zugriffe?)/i.test(text)) return "Nein";
+    if (mentionsNewSubprocessor(text) || mentionsNewProvider(text) || mentionsProviderChange(text) || mentionsFreelancerAccess(text)) return "Ja";
+    return "Unklar";
+  }
+
+  function classifySecurityChange(text) {
+    if (/(?:keine|keinen|ohne)\s+(?:(?:änderung(?:en)?\s+(?:an|bei)\s+)?(?:zugriffen?|berechtigungen?|rollen?|rechten?|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung)|sicherheitsänderung(?:en)?)|(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung).{0,50}(?:unverändert|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert)/i.test(text)) return "Nein";
+    if (/(?:ändert|geändert|angepasst|eingeführt|entfernt|umgestellt|deaktiviert|aktiviert).{0,60}(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung|mfa|login)|(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung|mfa|login).{0,60}(?:ändert|geändert|angepasst|eingeführt|entfernt|umgestellt|deaktiviert|aktiviert)/i.test(text)) return "Ja";
+    return "Unklar";
   }
 
   function mentionsNewSubprocessor(text) {
@@ -1028,8 +1044,34 @@
       /(dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider).{0,80}(ändert sich nicht|ändern sich nicht|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert|keine änderung)/i.test(text);
   }
 
-  function mentionsPersonalDataContext(text) {
-    return /\b(kundendaten|kunden-avv|personenbezogen|personenbezogene daten|tom|technisch-organisatorische maßnahmen)\b/i.test(text);
+  function mentionsProviderChange(text) {
+    if (hasExternalNegation(text)) return false;
+    return /(wechsel|ersetzt|ablösung|abgelöst).{0,60}(dienstleister|anbieter|provider)|(dienstleister|anbieter|provider).{0,60}(wechselt|gewechselt|ersetzt|abgelöst)/i.test(text);
+  }
+
+  function mentionsFreelancerAccess(text) {
+    return /(freelancer|freiberufler|externe[rn]?).{0,60}(zugriff|berechtigung)|(zugriff|berechtigung).{0,60}(freelancer|freiberufler)/i.test(text) && !hasExternalNegation(text);
+  }
+
+  function detectEmailChangeType(text, facts) {
+    if (/(datenschutzvorfall|sicherheitsvorfall|sicherheitsereignis|datenpanne|unautorisiert(?:er|en)?\s+zugriff|datenverlust)/i.test(text)) return "Datenschutzvorfall / Sicherheitsereignis";
+    if (mentionsProviderChange(text)) return "Wechsel Dienstleister";
+    if (mentionsNewSubprocessor(text)) return "Neuer Subunternehmer";
+    if (mentionsNewProvider(text)) return "Neuer Dienstleister";
+    if (mentionsFreelancerAccess(text)) return "Freelancer mit Zugriff";
+    if (/(system|tool|anwendung|archivsystem).{0,60}(abgeschaltet|stillgelegt|deaktiviert|außer betrieb|nicht mehr genutzt)|(abschaltung|stilllegung|außerbetriebnahme).{0,60}(system|tool|anwendung|archivsystem)/i.test(text)) return "System wird abgeschaltet";
+    if (/(api|schnittstelle|endpunkt).{0,60}(entfernt|deaktiviert|abgeschaltet|stillgelegt|entfällt)|(entfernung|abschaltung|stilllegung).{0,60}(api|schnittstelle|endpunkt)/i.test(text)) return "API entfernt";
+    if (/(api|schnittstelle|endpunkt).{0,60}(geändert|angepasst|erweitert|neu|neue datenfelder)|(änderung|anpassung|erweiterung).{0,60}(api|schnittstelle|endpunkt)/i.test(text)) return "API-Änderung";
+    if (facts.securityChange === "Ja" && /verschlüsselung.{0,60}(geändert|angepasst|eingeführt|entfernt|umgestellt)|(änderung|anpassung|umstellung).{0,60}verschlüsselung/i.test(text)) return "Verschlüsselung geändert";
+    if (facts.securityChange === "Ja" && /(rechte|rollen|berechtigungen).{0,60}(geändert|angepasst|eingeführt|entfernt)|(änderung|anpassung).{0,60}(rechte|rollen|berechtigungen)/i.test(text)) return "Rechte-/Rollenkonzept geändert";
+    if (facts.securityChange === "Ja" && /(backup|datensicherung|wiederherstellung).{0,60}(geändert|angepasst|umgestellt|verlegt)|(änderung|anpassung|umstellung).{0,60}(backup|datensicherung|wiederherstellung)/i.test(text)) return "Backup geändert";
+    if (/(infrastruktur|server|hosting|firewall|netzwerk).{0,60}(geändert|angepasst|umgestellt|migriert)|(änderung|anpassung|umstellung|migration).{0,60}(infrastruktur|server|hosting|firewall|netzwerk)/i.test(text)) return "Infrastrukturänderung";
+    if (/(software[-\s]?update|update|bugfix|patch|wartung)/i.test(text)) {
+      if (facts.personalData === "Nein") return "Software-Update ohne Datenbezug";
+      if (facts.personalData === "Ja") return "Software-Update mit Datenbezug";
+    }
+    if (!/(kein|keine|keinen|ohne).{0,30}(neues|neuen|neue).{0,30}(system|tool|anwendung)/i.test(text) && /(neues|neuen|neue).{0,30}(system|tool|anwendung)/i.test(text)) return "Neues System";
+    return "Sonstiges / Unklar";
   }
 
   function appendNoteOnce(note) {
@@ -1040,129 +1082,6 @@
 
 
   const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
-
-  function normalizeCustomerAvv(row, index) {
-    const customerName = String(row.customer_name || "").trim();
-    if (!customerName) throw new Error(`Zeile ${index + 2}: Kunde fehlt.`);
-    return {
-      customer_avv_id: String(row.customer_avv_id || `CAVV-${Date.now()}-${index + 1}`).trim(),
-      customer_id: String(row.customer_id || "").trim(),
-      customer_name: customerName,
-      avv_title: String(row.avv_title || `AVV ${customerName}`).trim(),
-      avv_version: String(row.avv_version || "").trim(),
-      contract_date: normalizeDateInput(row.contract_date),
-      status: String(row.status || "Aktiv").trim(),
-      affected_systems: String(row.affected_systems || "").trim(),
-      data_categories: String(row.data_categories || "").trim(),
-      processor_name: String(row.processor_name || "").trim(),
-      source_file: String(row.source_file || "").trim(),
-      file_hash: String(row.file_hash || "").trim(),
-      file_size: Number(row.file_size || 0) || 0,
-      file_type: String(row.file_type || "").trim(),
-      last_review: normalizeDateInput(row.last_review),
-      review_status: String(row.review_status || "OK").trim(),
-      notes: String(row.notes || "").trim(),
-      avv_text: String(row.avv_text || "").trim(),
-    };
-  }
-
-  function importCustomerAvvCsvFile(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const errors = [];
-      const imported = [];
-      parseCsv(String(reader.result || "")).forEach((row, index) => {
-        try { imported.push(normalizeCustomerAvv(row, index)); } catch (error) { errors.push(error.message); }
-      });
-      imported.forEach((entry) => {
-        const existing = customerAvvs.findIndex((item) => item.customer_avv_id === entry.customer_avv_id);
-        if (existing >= 0) customerAvvs[existing] = { ...customerAvvs[existing], ...entry };
-        else customerAvvs.push(entry);
-      });
-      persistCustomerAvvs();
-      renderCustomerAvvs();
-      showMessage("customerAvvMessage", `${imported.length} Kunden-AVV-Datensätze importiert.${errors.length ? " Fehler: " + errors.map(escapeHtml).join(" | ") : ""}`, errors.length ? "danger" : "warning");
-      event.target.value = "";
-    };
-    reader.onerror = () => showMessage("customerAvvMessage", "Kunden-AVV-CSV konnte nicht gelesen werden.", "danger");
-    reader.readAsText(file, "utf-8");
-  }
-
-  function renderCustomerAvvs() {
-    const query = ($("customerAvvSearch").value || "").toLowerCase();
-    const status = $("customerAvvStatusFilter").value;
-    const filtered = customerAvvs.filter((item) => (!status || item.status === status) && Object.values(item).join(" ").toLowerCase().includes(query));
-    $("avvCountTotal").textContent = customerAvvs.length;
-    $("avvCountOpen").textContent = customerAvvs.filter((item) => item.status === "Prüfung offen").length;
-    $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
-    $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
-    const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
-    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(fieldLabel(c))}</th>`).join("")}</tr>`;
-    document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
-    document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
-    renderCustomerAvvDetail();
-  }
-
-  function formatCustomerAvvCell(column, value) {
-    if (DATE_FIELDS.has(column)) return escapeHtml(formatDateForDisplay(value));
-    if (column === "status" || column === "review_status") return `<span class="status-badge ${statusClass(value)}">${escapeHtml(value || "")}</span>`;
-    return escapeHtml(value || "");
-  }
-
-  function statusClass(value) {
-    const text = String(value || "").toLowerCase();
-    if (text.includes("aktiv") || text === "ok") return "status-active";
-    if (text.includes("high") || text.includes("aktualisierung")) return "status-high";
-    if (text.includes("prüf") || text.includes("tom")) return "status-open";
-    return "";
-  }
-
-  function selectCustomerAvv(id) { selectedCustomerAvvId = id; renderCustomerAvvDetail(); }
-
-  function renderCustomerAvvDetail() {
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
-    $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(fieldLabel(column))}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Zur Prüfung markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
-    $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
-    $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
-  }
-
-  async function importCustomerAvvPdf(event) {
-    const file = event.target.files[0];
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!file || !item) { showMessage("customerAvvMessage", "Bitte zuerst einen Kunden-AVV-Datensatz auswählen und dann die PDF importieren.", "danger"); return; }
-    item.source_file = file.name;
-    item.file_type = file.type || "application/pdf";
-    item.file_size = file.size;
-    item.file_hash = await calculateSha256(file);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    showMessage("customerAvvMessage", "AVV-PDF wurde lokal registriert. Metadaten und Hash wurden gespeichert.", "warning");
-    event.target.value = "";
-  }
-
-  function exportCustomerAvvsCsv() { downloadFile("kunden_avvs_export.csv", toCsv(customerAvvs, CUSTOMER_AVV_COLUMNS), "text/csv;charset=utf-8"); }
-
-  function renderAffectedReviewBox(result) {
-    const affected = Array.isArray(result.affected_documents) ? result.affected_documents : [];
-    const parts = [];
-    if (affected.includes("AVV")) {
-      const relevant = customerAvvs.filter((item) => ["Aktiv", "Prüfung offen"].includes(item.status));
-      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs zur Prüfung markieren</button></div>`);
-    }
-    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM zur Prüfung markieren</button></div>`);
-    return parts.length ? `<div class="review-actions">${parts.join("")}</div>` : "";
-  }
-
-  function markRelevantCustomerAvvs(highImpact) {
-    customerAvvs = customerAvvs.map((item) => ["Aktiv", "Prüfung offen"].includes(item.status) ? { ...item, status: "Prüfung offen", review_status: highImpact ? "High Impact prüfen" : "Prüfen" } : item);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden zur Prüfung markiert.");
-  }
 
   async function loadWebScanResults() {
     hideMessage("webScanMessage");
@@ -1203,24 +1122,6 @@
       </article>
     `).join("");
   }
-
-  async function calculateSha256(file) {
-    if (!crypto || !crypto.subtle) return "SHA-256 im aktuellen Browser nicht verfügbar";
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", buffer);
-    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  }
-
-  function setPdfPreview(file, frameId, fallbackId, type) {
-    if (type === "tom" && tomPreviewUrl) URL.revokeObjectURL(tomPreviewUrl);
-    if (type === "avv" && avvPreviewUrl) URL.revokeObjectURL(avvPreviewUrl);
-    const url = URL.createObjectURL(file);
-    if (type === "tom") tomPreviewUrl = url; else avvPreviewUrl = url;
-    $(frameId).src = url;
-    $(frameId).classList.remove("hidden");
-    $(fallbackId).classList.add("hidden");
-  }
-
 
   const STATIC_SAMPLE_TOM = {
     tom_id: "TOM-001",
@@ -1457,19 +1358,6 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
   }
 
 
-  function persistTom() {
-    return;
-  }
-
-  function loadCustomerAvvs() {
-    if (!isLocalStorageAvailable()) return [];
-    try { return JSON.parse(localStorage.getItem(CUSTOMER_AVVS_STORAGE_KEY) || "[]"); } catch { return []; }
-  }
-
-  function persistCustomerAvvs() {
-    if (isLocalStorageAvailable()) localStorage.setItem(CUSTOMER_AVVS_STORAGE_KEY, JSON.stringify(customerAvvs));
-  }
-
   function renderTom() {
     renderStaticTom();
   }
@@ -1498,150 +1386,6 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     return;
   }
 
-
-  function normalizeCustomerAvv(row, index) {
-    const customerName = String(row.customer_name || "").trim();
-    if (!customerName) throw new Error(`Zeile ${index + 2}: customer_name fehlt.`);
-    return {
-      customer_avv_id: String(row.customer_avv_id || `CAVV-${Date.now()}-${index + 1}`).trim(),
-      customer_id: String(row.customer_id || "").trim(),
-      customer_name: customerName,
-      avv_title: String(row.avv_title || `AVV ${customerName}`).trim(),
-      avv_version: String(row.avv_version || "").trim(),
-      contract_date: String(row.contract_date || "").trim(),
-      status: String(row.status || "Aktiv").trim(),
-      affected_systems: String(row.affected_systems || "").trim(),
-      data_categories: String(row.data_categories || "").trim(),
-      processor_name: String(row.processor_name || "").trim(),
-      source_file: String(row.source_file || "").trim(),
-      file_hash: String(row.file_hash || "").trim(),
-      file_size: Number(row.file_size || 0) || 0,
-      file_type: String(row.file_type || "").trim(),
-      last_review: String(row.last_review || "").trim(),
-      review_status: String(row.review_status || "OK").trim(),
-      notes: String(row.notes || "").trim(),
-      avv_text: String(row.avv_text || "").trim(),
-    };
-  }
-
-  function importCustomerAvvCsvFile(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const errors = [];
-      const imported = [];
-      parseCsv(String(reader.result || "")).forEach((row, index) => {
-        try { imported.push(normalizeCustomerAvv(row, index)); } catch (error) { errors.push(error.message); }
-      });
-      imported.forEach((entry) => {
-        const existing = customerAvvs.findIndex((item) => item.customer_avv_id === entry.customer_avv_id);
-        if (existing >= 0) customerAvvs[existing] = { ...customerAvvs[existing], ...entry };
-        else customerAvvs.push(entry);
-      });
-      persistCustomerAvvs();
-      renderCustomerAvvs();
-      showMessage("customerAvvMessage", `${imported.length} Kunden-AVV-Datensätze importiert.${errors.length ? " Fehler: " + errors.map(escapeHtml).join(" | ") : ""}`, errors.length ? "danger" : "warning");
-      event.target.value = "";
-    };
-    reader.onerror = () => showMessage("customerAvvMessage", "Kunden-AVV-CSV konnte nicht gelesen werden.", "danger");
-    reader.readAsText(file, "utf-8");
-  }
-
-  function renderCustomerAvvs() {
-    const query = ($("customerAvvSearch").value || "").toLowerCase();
-    const status = $("customerAvvStatusFilter").value;
-    const filtered = customerAvvs.filter((item) => (!status || item.status === status) && Object.values(item).join(" ").toLowerCase().includes(query));
-    $("avvCountTotal").textContent = customerAvvs.length;
-    $("avvCountOpen").textContent = customerAvvs.filter((item) => item.status === "Prüfung offen").length;
-    $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
-    $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
-    const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
-    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(fieldLabel(c))}</th>`).join("")}</tr>`;
-    document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
-    document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
-    renderCustomerAvvDetail();
-  }
-
-  function formatCustomerAvvCell(column, value) {
-    if (column === "status" || column === "review_status") return `<span class="status-badge ${statusClass(value)}">${escapeHtml(value || "")}</span>`;
-    return escapeHtml(value || "");
-  }
-
-  function statusClass(value) {
-    const text = String(value || "").toLowerCase();
-    if (text.includes("aktiv") || text === "ok") return "status-active";
-    if (text.includes("high") || text.includes("aktualisierung")) return "status-high";
-    if (text.includes("prüf") || text.includes("tom")) return "status-open";
-    return "";
-  }
-
-  function selectCustomerAvv(id) { selectedCustomerAvvId = id; renderCustomerAvvDetail(); }
-
-  function renderCustomerAvvDetail() {
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
-    $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(fieldLabel(column))}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
-    $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
-    $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
-  }
-
-  async function importCustomerAvvPdf(event) {
-    const file = event.target.files[0];
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!file || !item) { showMessage("customerAvvMessage", "Bitte zuerst einen Kunden-AVV-Datensatz auswählen und dann die PDF importieren.", "danger"); return; }
-    item.source_file = file.name;
-    item.file_type = file.type || "application/pdf";
-    item.file_size = file.size;
-    item.file_hash = await calculateSha256(file);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    showMessage("customerAvvMessage", "AVV-PDF wurde lokal registriert. Metadaten und Hash wurden gespeichert.", "warning");
-    event.target.value = "";
-  }
-
-  function exportCustomerAvvsCsv() { downloadFile("kunden_avvs_export.csv", toCsv(customerAvvs, CUSTOMER_AVV_COLUMNS), "text/csv;charset=utf-8"); }
-
-  function renderAffectedReviewBox(result) {
-    const affected = Array.isArray(result.affected_documents) ? result.affected_documents : [];
-    const parts = [];
-    if (affected.includes("AVV")) {
-      const relevant = customerAvvs.filter((item) => ["Aktiv", "Prüfung offen"].includes(item.status));
-      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs als prüfpflichtig markieren</button></div>`);
-    }
-    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM als prüfpflichtig markieren</button></div>`);
-    return parts.length ? `<div class="review-actions">${parts.join("")}</div>` : "";
-  }
-
-  function markRelevantCustomerAvvs(highImpact) {
-    customerAvvs = customerAvvs.map((item) => ["Aktiv", "Prüfung offen"].includes(item.status) ? { ...item, status: "Prüfung offen", review_status: highImpact ? "High Impact prüfen" : "Prüfen" } : item);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden als prüfpflichtig markiert.");
-  }
-
-  async function calculateSha256(file) {
-    if (typeof crypto === "undefined" || !crypto.subtle) return "SHA-256 im aktuellen Browser nicht verfügbar";
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", buffer);
-    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  }
-
-  function setPdfPreview(file, frameId, fallbackId, type) {
-    if (type === "tom" && tomPreviewUrl) URL.revokeObjectURL(tomPreviewUrl);
-    if (type === "avv" && avvPreviewUrl) URL.revokeObjectURL(avvPreviewUrl);
-    const url = URL.createObjectURL(file);
-    if (type === "tom") tomPreviewUrl = url; else avvPreviewUrl = url;
-    $(frameId).src = url;
-    $(frameId).classList.remove("hidden");
-    $(fallbackId).classList.add("hidden");
-  }
-
-
-  function persistTom() {
-    return;
-  }
 
   function loadCustomerAvvs() {
     if (!isLocalStorageAvailable()) return [];
