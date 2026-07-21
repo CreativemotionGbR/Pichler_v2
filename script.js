@@ -1091,28 +1091,10 @@
     return match ? match[1] : "";
   }
 
-  function classifyPersonalData(text) {
-    if (/(?:keine|keinen|ohne)\s+(?:verarbeitung\s+)?personenbezogene[nr]?\s+daten|personenbezogene[nr]?\s+daten.{0,50}(?:nicht|keine|keinen)\s+(?:verarbeitet|gespeichert|übertragen|genutzt|betroffen)/i.test(text)) return "Nein";
-    if (/(?:verarbeitet|speichert|überträgt|nutzt|enthält|zugriff\s+auf).{0,50}personenbezogene[nr]?\s+daten|personenbezogene[nr]?\s+daten.{0,50}(?:verarbeitet|gespeichert|übertragen|genutzt|betroffen)/i.test(text)) return "Ja";
-    return "Unklar";
-  }
-
-  function classifyCustomersAffected(text) {
-    if (/(?:keine|keinen)\s+(?:kunden|kundendaten).{0,30}(?:betroffen|beeinträchtigt)|(?:kunden|kundendaten).{0,40}(?:nicht|keine|keinen)\s+(?:betroffen|beeinträchtigt)/i.test(text)) return "Nein";
-    if (/(?:kunden|kundendaten).{0,30}(?:sind|werden)?\s*(?:betroffen|beeinträchtigt)|betrifft.{0,30}(?:kunden|kundendaten)/i.test(text)) return "Ja";
-    return "Unklar";
-  }
-
-  function classifyExternalParties(text) {
-    if (hasExternalNegation(text) || /(?:keine|ohne)\s+externe[nr]?\s+(?:beteiligte|dienstleister|zugriffe?)/i.test(text)) return "Nein";
-    if (mentionsNewSubprocessor(text) || mentionsNewProvider(text) || mentionsProviderChange(text) || mentionsFreelancerAccess(text)) return "Ja";
-    return "Unklar";
-  }
-
-  function classifySecurityChange(text) {
-    if (/(?:keine|keinen|ohne)\s+(?:(?:änderung(?:en)?\s+(?:an|bei)\s+)?(?:zugriffen?|berechtigungen?|rollen?|rechten?|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung)|sicherheitsänderung(?:en)?)|(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung).{0,50}(?:unverändert|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert)/i.test(text)) return "Nein";
-    if (/(?:ändert|geändert|angepasst|eingeführt|entfernt|umgestellt|deaktiviert|aktiviert).{0,60}(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung|mfa|login)|(?:zugriffe?|berechtigungen?|rollen?|rechte|sicherheitsmaßnahmen|verschlüsselung|backups?|protokollierung|mfa|login).{0,60}(?:ändert|geändert|angepasst|eingeführt|entfernt|umgestellt|deaktiviert|aktiviert)/i.test(text)) return "Ja";
-    return "Unklar";
+  // Stichwort-Erkennung für TOM-/Sicherheitsbezug. Wird in classifyEmailFields
+  // nur ausgewertet, wenn keine Verneinung ("... bleiben unverändert") greift.
+  function containsSecurityHint(text) {
+    return /\b(tom|verschlüsselung|aes[-\s]?\d+|tls|key-management|kryptografische schlüssel|backup-verschlüsselung|zugriff|rollen|rechte|protokollierung|backup|wiederherstellung|mfa|login|sicherheitsmaßnahmen|technisch-organisatorische maßnahmen)\b/i.test(text);
   }
 
   function mentionsNewSubprocessor(text) {
