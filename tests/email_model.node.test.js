@@ -119,7 +119,7 @@ check("Reale Mail 1 (Druckserver-Update) -> Low, alles Nein", () => {
   assert.strictEqual(result.impact_level, "Low");
 });
 
-check("Reale Mail 2 (neuer Hosting-Dienstleister mit Kundendaten) -> High + AVV/TOM/Kundeninfo", () => {
+check("Reale Mail 2 (neuer Hosting-Dienstleister mit Kundendaten) -> High + AVV/Kundeninfo", () => {
   const { fields, result } = evaluateMail(REAL_2);
   assert.strictEqual(fields.personal_data, "Ja");
   assert.strictEqual(fields.customers_affected, "Ja");
@@ -127,7 +127,6 @@ check("Reale Mail 2 (neuer Hosting-Dienstleister mit Kundendaten) -> High + AVV/
   assert.strictEqual(fields.change_type, "Neuer Dienstleister");
   assert.strictEqual(result.impact_level, "High");
   assert.ok(result.affected_documents.includes("AVV"), "AVV erwartet");
-  assert.ok(result.affected_documents.includes("TOM"), "TOM erwartet");
   assert.ok(result.affected_documents.includes("Kundeninformation"), "Kundeninformation erwartet");
 });
 

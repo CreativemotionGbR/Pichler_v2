@@ -83,6 +83,61 @@ check("Neuer Dienstleister mit Kundendaten füllt AVV-relevante Felder", () => {
   assert.strictEqual(f.customers_affected, "Ja");
 });
 
+check("Regression 1: 'Kunden sind nicht betroffen' bleibt Low", () => {
+  const mail = [
+    "Auf den internen Druckservern wird die Drucksoftware aktualisiert.",
+    "Es werden keine personenbezogenen Daten verarbeitet.",
+    "Kunden sind nicht betroffen.",
+    "Es werden keine externen Dienstleister eingebunden.",
+    "Sicherheitsmaßnahmen bleiben unverändert.",
+  ].join(" ");
+  const fields = classifyEmailFields("Internes Software-Update", mail);
+  const result = evaluateChange(Object.assign({ change_type: fields.change_type }, fields), rules);
+  assert.strictEqual(fields.change_type, "Software-Update ohne Datenbezug");
+  assert.strictEqual(fields.security_change, "Nein");
+  assert.strictEqual(fields.personal_data, "Nein");
+  assert.strictEqual(fields.customers_affected, "Nein");
+  assert.strictEqual(fields.external_parties, "Nein");
+  assert.strictEqual(result.impact_level, "Low");
+});
+
+check("Regression 2: API-Entfernung erkennt beide Systeme ohne Sicherheitsänderung", () => {
+  const mail = [
+    "Die API zwischen dem Altsystem und dem Reporting-System wird entfernt.",
+    "Es wird keine neue Schnittstelle eingeführt und kein neuer Dienstleister beauftragt.",
+    "Die technischen Zugriffsrechte werden im Zuge der Abschaltung entfernt.",
+    "Personenbezogene Daten und Kunden sind nicht betroffen.",
+  ].join(" ");
+  const fields = classifyEmailFields("API wird entfernt", mail);
+  const systems = extractAffectedSystems(mail);
+  const result = evaluateChange(Object.assign({ change_type: fields.change_type }, fields), rules);
+  assert.strictEqual(fields.change_type, "API entfernt");
+  assert.notStrictEqual(fields.security_change, "Ja");
+  assert.strictEqual(fields.personal_data, "Nein");
+  assert.strictEqual(fields.customers_affected, "Nein");
+  assert.strictEqual(fields.external_parties, "Nein");
+  assert.ok(systems.split(", ").includes("Altsystem"), systems);
+  assert.ok(systems.split(", ").includes("Reporting-System"), systems);
+  assert.strictEqual(result.impact_level, "Medium");
+});
+
+check("Regression 3: neuer CRM-Dienstleister extrahiert CRM-System", () => {
+  const mail = [
+    "Ein neuer externer Dienstleister übernimmt Support und Wartung für das CRM-System.",
+    "Er erhält Zugriff auf personenbezogene Kundendaten. Kunden sind betroffen.",
+  ].join(" ");
+  const fields = classifyEmailFields("Neuer Dienstleister für CRM", mail);
+  const systems = extractAffectedSystems(mail);
+  const result = evaluateChange(Object.assign({ change_type: fields.change_type }, fields), rules);
+  assert.strictEqual(fields.change_type, "Neuer Dienstleister");
+  assert.strictEqual(fields.security_change, "Nein");
+  assert.strictEqual(fields.personal_data, "Ja");
+  assert.strictEqual(fields.customers_affected, "Ja");
+  assert.strictEqual(fields.external_parties, "Ja");
+  assert.ok(systems.split(", ").includes("CRM-System"), systems);
+  assert.strictEqual(result.impact_level, "High");
+});
+
 if (failures.length > 0) {
   console.error(`FEHLGESCHLAGEN: ${failures.length} Fall/Fälle`);
   for (const message of failures) console.error("  - " + message);

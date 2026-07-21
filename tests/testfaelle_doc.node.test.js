@@ -51,7 +51,7 @@ run("Fall 3 – MEDIUM System wird abgeschaltet",
 run("Fall 5 – HIGH Neuer Dienstleister",
   "Betreff: Neuer Hosting-Dienstleister für Kundenportal. ab dem 01.08.2026 wird für unser Kundenportal ein neuer Hosting-Dienstleister eingesetzt. Der Dienstleister erhält Zugriff auf personenbezogene Kundendaten, darunter Namen, E-Mail-Adressen und Vertragsdaten. Vor der Inbetriebnahme muss ein neuer Auftragsverarbeitungsvertrag abgeschlossen werden. Bitte prüfen Sie außerdem die technischen und organisatorischen Maßnahmen und dokumentieren Sie den neuen Dienstleister.",
   { change_type: "Neuer Dienstleister", personal_data: "Ja", customers_affected: "Ja", external_parties: "Ja" },
-  "High", ["AVV", "TOM"]);
+  "High", ["AVV"]);
 
 run("Fall 7 – HIGH Neuer Subunternehmer",
   "Betreff: Information über neuen Subunternehmer. wir informieren Sie darüber, dass wir ab dem 01.08.2026 einen neuen Subunternehmer für den technischen Plattformbetrieb einsetzen. Der Subunternehmer kann im Rahmen seiner Tätigkeit Zugriff auf personenbezogene Daten erhalten. Bitte prüfen Sie die bestehende Subunternehmerliste sowie die vertraglichen Regelungen und ob eine Kundeninformation oder Freigabe erforderlich ist.",
@@ -60,7 +60,7 @@ run("Fall 7 – HIGH Neuer Subunternehmer",
 
 run("Fall 8 – HIGH Freelancer mit Zugriff",
   "Betreff: Externer Freelancer erhält Zugriff auf CRM. für ein dreimonatiges Projekt erhält ein externer Freelancer Zugriff auf unser CRM-System. Im CRM befinden sich personenbezogene Kunden- und Kontaktdaten. Der Freelancer benötigt Zugriff auf ausgewählte Datensätze. Bitte prüfen Sie Vertragsstatus, Zugriffsrechte und die relevanten technischen und organisatorischen Maßnahmen.",
-  { change_type: "Freelancer mit Zugriff", security_change: "Ja", personal_data: "Ja", customers_affected: "Ja", external_parties: "Ja" },
+  { change_type: "Freelancer mit Zugriff", security_change: "Nein", personal_data: "Ja", customers_affected: "Ja", external_parties: "Ja" },
   "High", ["AVV", "TOM"]);
 
 run("Fall 9 – HIGH API-Änderung mit Datenübertragung",

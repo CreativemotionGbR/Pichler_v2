@@ -1200,14 +1200,16 @@
     const fields = {};
 
     // Personenbezogene Daten
-    if (/\b(kein|keine|keinen)\b[^.]*personenbezogen/.test(text) || /\bohne\b[^.]*personenbezug/.test(text)) {
+    if (/\b(kein|keine|keinen)\b[^.]*personenbezogen/.test(text) || /\bohne\b[^.]*personenbezug/.test(text) ||
+      /personenbezogen\w*\s+daten[^.]*(?:nicht|keine|keinen)\s+(?:verarbeitet|gespeichert|übertragen|genutzt|betroffen)/.test(text)) {
       fields.personal_data = "Nein";
     } else if (/personenbezogen/.test(text) || /\bkundendaten\b/.test(text) || /\bpersonenbezug\b/.test(text) || /kunden-\s*und\s*kontaktdaten/.test(text)) {
       fields.personal_data = "Ja";
     }
 
     // Kunden betroffen (auch, wenn Kundendaten verarbeitet werden)
-    if (/\b(kein|keine|keinen)\b[^.]*\bkunden/.test(text)) {
+    if (/\b(kein|keine|keinen)\b[^.]*\bkunden/.test(text) ||
+      /\b(?:kunden|kundendaten)\b[^.]*(?:sind|werden)?\s*nicht\s+(?:betroffen|beeinträchtigt)/.test(text)) {
       fields.customers_affected = "Nein";
     } else if (/\bkunden(daten|portal|konto|kontakt)/.test(text) || /kunden-\s*und/.test(text) ||
       /\bkunden\b[^.]*betroffen/.test(text) || /betrifft[^.]*\bkunden/.test(text)) {
@@ -1217,20 +1219,25 @@
     // Externe Beteiligte
     if (mentionsNewProvider(text) || mentionsNewSubprocessor(text)) {
       fields.external_parties = "Ja";
-    } else if (/\b(kein|keine|keinen)\b[^.]*(extern\w*|dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider|freelancer)/.test(text) || hasExternalNegation(text)) {
+    } else if (/\b(kein|keine|keinen)\b[^.]*(extern\w*|dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider|freelancer)/.test(text) ||
+      /(extern\w*\s+beteiligte|dienstleister|subunternehmer|anbieter|provider)[^.]*(?:sind|werden)?\s*nicht\s+(?:beteiligt|eingebunden|beauftragt)/.test(text) || hasExternalNegation(text)) {
       fields.external_parties = "Nein";
     } else if (/\bfreelancer\b/.test(text) || /extern\w*\s+(dienstleister|beteiligt\w*|partner|zugriff\w*)/.test(text)) {
       fields.external_parties = "Ja";
     }
 
     // Sicherheitsänderung – Verneinung schlägt Schlüsselwort
+    const decommissioningAccessCleanup =
+      /(?:\bapi\b|schnittstelle|system)[^.]{0,120}(?:entfernt|deaktiviert|abgeschaltet|stillgelegt)/.test(text) &&
+      /(?:zugriffs?rechte?|berechtigungen?|zugänge?)[^.]{0,80}(?:entfernt|gelöscht|entzogen|deaktiviert)/.test(text);
     const securityUnchanged =
       /(zugriff\w*|berechtigung\w*|rollen|rechte|sicherheitsmaßnahme\w*|verschlüsselung|firewall|backup)[^.]*\b(bleiben|bleibt|sind|ist)\s+unverändert/.test(text) ||
       /\b(kein|keine|keinen)\b[^.]*änderung\w*[^.]*(sicherheit|zugriff|berechtigung|rollen|rechte|verschlüsselung|firewall|backup)/.test(text) ||
-      /(sicherheit\w*|zugriff\w*|berechtigung\w*|verschlüsselung|firewall|backup)[^.]*(nicht\s+(geändert|verändert)|unverändert)/.test(text);
+      /(sicherheit\w*|zugriff\w*|berechtigung\w*|verschlüsselung|firewall|backup)[^.]*(nicht\s+(geändert|verändert)|unverändert)/.test(text) ||
+      decommissioningAccessCleanup;
     if (securityUnchanged) {
       fields.security_change = "Nein";
-    } else if (containsSecurityHint(text)) {
+    } else if (containsExplicitSecurityChange(text)) {
       fields.security_change = "Ja";
     }
 
@@ -1284,13 +1291,16 @@
   function extractAffectedSystems(body) {
     if (!body) return "";
     const matches = body.match(
-      /\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]*(?:server|software|system(?:e)?|anwendung(?:en)?|datenbank(?:en)?|cloud|api|schnittstelle(?:n)?|dienst(?:e)?|plattform(?:en)?|tool(?:s)?|hosting|portal(?:e)?|modul(?:e)?)(?:e|en|n|s)?\b/g
+      /\b(?:[A-ZÄÖÜ]{2,}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]*?)(?:-?(?:server(?:n)?|software|system(?:e|en)?|anwendung(?:en)?|datenbank(?:en)?|cloud|api|schnittstelle(?:n)?|dienst(?:e)?|plattform(?:en)?|tool(?:s)?|hosting|portal(?:e)?|modul(?:e)?))\b/gi
     );
     if (!matches) return "";
     const seen = new Set();
     const out = [];
     for (const raw of matches) {
-      const cleaned = raw.replace(/ern$/, "er");
+      const cleaned = raw
+        .replace(/servern$/i, "server")
+        .replace(/systemen$/i, "system")
+        .replace(/datenbanken$/i, "datenbank");
       const key = cleaned.toLowerCase();
       if (!seen.has(key)) {
         seen.add(key);
@@ -1308,8 +1318,13 @@
 
   // Stichwort-Erkennung für TOM-/Sicherheitsbezug. Wird in classifyEmailFields
   // nur ausgewertet, wenn keine Verneinung ("... bleiben unverändert") greift.
-  function containsSecurityHint(text) {
-    return /(\btom\b|verschlüssel|krypto|aes[-\s]?\d+|\btls\b|zugriffskontrolle|zugriffsrecht|rollen|rollenkonzept|berechtigung|protokollierung|firewall|backup|wiederherstellung|\bmfa\b|mehrfaktor|login|sicherheitsmaßnahme|technisch-organisatorische maßnahmen|technischen und organisatorischen maßnahmen|organisatorische maßnahmen)/i.test(text);
+  function containsExplicitSecurityChange(text) {
+    if (/unautorisiert\w*|unbefugt\w*|datenpanne|datenleck|sicherheitsvorfall|datenschutzvorfall|\bincident\b/i.test(text)) {
+      return true;
+    }
+    const securitySubject = "(?:verschlüssel\\w*|kryptoverfahren|firewall|backup|wiederherstellung|zugriffskontrolle|berechtigungskonzept|rollenkonzept|rollen|berechtigungen|login|mfa|mehrfaktor|protokollierung|monitoring|sicherheitsmaßnahme\\w*)";
+    const changeAction = "(?:geändert|verändert|angepasst|umgestellt|eingeführt|aktiviert|deaktiviert|ersetzt|überarbeitet|neu\\s+vergeben|verstärkt|stärker)";
+    return new RegExp(`${securitySubject}.{0,80}${changeAction}|${changeAction}.{0,80}${securitySubject}`, "i").test(text);
   }
 
   function mentionsNewSubprocessor(text) {
