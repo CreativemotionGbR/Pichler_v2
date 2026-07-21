@@ -121,10 +121,18 @@
     "Freelancer mit Zugriff",
     "API-Änderung",
     "Infrastrukturänderung",
-    "Backup geändert",
     "Rechte-/Rollenkonzept geändert",
     "Verschlüsselung geändert",
+    "Neues System",
     "Datenschutzvorfall / Sicherheitsereignis",
+  ]);
+  // "Backup geändert" ist laut Regelkatalog Medium/High: Basis Medium (siehe
+  // MEDIUM_CHANGE_TYPES), Hochstufung auf High über die allgemeinen Regeln.
+  const MEDIUM_CHANGE_TYPES = new Set([
+    "Software-Update mit Datenbezug",
+    "API entfernt",
+    "Backup geändert",
+    "System wird abgeschaltet",
   ]);
   const AVV_CHANGE_TYPES = new Set([
     "Neuer Dienstleister",
@@ -260,7 +268,6 @@
     },
   ];
   let history = [];
-  let currentTom = null;
   let customerAvvs = [];
   let selectedCustomerAvvId = "";
   let lastEvaluation = null;
@@ -268,18 +275,23 @@
   let avvPreviewUrl = "";
 
   const $ = (id) => document.getElementById(id);
-  const form = $("changeForm");
+  // In Browsern wird die Oberfläche initialisiert; unter Node (Tests) fehlt das
+  // DOM, dann bleibt nur die reine Regel-Logik nutzbar (siehe module.exports).
+  const hasDom = typeof document !== "undefined";
+  const form = hasDom ? $("changeForm") : null;
 
-  document.addEventListener("DOMContentLoaded", init);
-  document.addEventListener("DOMContentLoaded", () => {
-    try {
-      renderStaticTom();
+  if (hasDom) {
+    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      try {
+        renderStaticTom();
 
-      document.getElementById("reloadSampleTomBtn")?.addEventListener("click", resetEditedTom);
-    } catch (error) {
-      console.error("Statische TOM konnte nicht angezeigt werden:", error);
-    }
-  });
+        document.getElementById("reloadSampleTomBtn")?.addEventListener("click", resetEditedTom);
+      } catch (error) {
+        console.error("Statische TOM konnte nicht angezeigt werden:", error);
+      }
+    });
+  }
 
   async function init() {
     populateSelect("change_type", KNOWN_CHANGE_TYPES);
@@ -296,7 +308,6 @@
 
     history = loadHistory();
     $("change_id").value = nextChangeId();
-    currentTom = null;
     customerAvvs = loadCustomerAvvs();
     renderHistory();
     renderTom();
@@ -304,7 +315,80 @@
     loadSampleCustomerAvvsIfEmpty();
     loadWebScanResults();
     bindEvents();
+    setupCollapsibleSections();
+    enhanceYesNoFields();
     if (history.length === 0) loadSampleData(true);
+  }
+
+  const YES_NO_FIELDS = ["security_change", "personal_data", "customers_affected", "external_parties"];
+
+  // Ersetzt die Ja/Nein/Unklar-Dropdowns visuell durch Segment-Buttons.
+  // Das <select> bleibt als Datenquelle erhalten (nur ausgeblendet), damit die
+  // bestehende Formularlogik unverändert weiterarbeitet.
+  function enhanceYesNoFields() {
+    YES_NO_FIELDS.forEach((id) => {
+      const select = $(id);
+      if (!select || select.dataset.enhanced) return;
+      const group = document.createElement("div");
+      group.className = "segmented";
+      group.setAttribute("role", "group");
+      const label = select.closest("label");
+      group.setAttribute("aria-label", label ? label.textContent.trim() : id);
+      YES_NO_UNKNOWN.forEach((option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "segment";
+        button.dataset.value = option;
+        button.textContent = option;
+        button.addEventListener("click", () => {
+          select.value = option;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          syncSegments(id);
+        });
+        group.appendChild(button);
+      });
+      select.insertAdjacentElement("afterend", group);
+      select.hidden = true;
+      select.dataset.enhanced = "1";
+    });
+    syncAllSegments();
+  }
+
+  function syncSegments(id) {
+    const select = $(id);
+    if (!select) return;
+    const group = select.nextElementSibling;
+    if (!group || !group.classList.contains("segmented")) return;
+    group.querySelectorAll(".segment").forEach((button) => {
+      const active = button.dataset.value === select.value;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  function syncAllSegments() {
+    YES_NO_FIELDS.forEach(syncSegments);
+  }
+
+  // Aufklappbare Hauptbereiche: Klicks auf Buttons/Eingaben in der Kopfzeile
+  // dürfen den Bereich nicht auf-/zuklappen, und Navigationslinks öffnen einen
+  // eingeklappten Zielbereich automatisch.
+  function setupCollapsibleSections() {
+    document.querySelectorAll("details.collapsible > summary").forEach((summary) => {
+      summary.querySelectorAll("button, a, label, input, select, textarea").forEach((control) => {
+        control.addEventListener("click", (event) => event.stopPropagation());
+      });
+    });
+    document.querySelectorAll('.app-nav a[href^="#"]').forEach((link) => {
+      link.addEventListener("click", () => {
+        const target = document.querySelector(link.getAttribute("href"));
+        if (!target) return;
+        // Ziel kann der Bereich selbst (details liegt darin) oder ein Element
+        // innerhalb des Bereichs sein (details liegt darüber).
+        const details = target.closest("details.collapsible") || target.querySelector("details.collapsible");
+        if (details && !details.open) details.open = true;
+      });
+    });
   }
 
   function bindEvents() {
@@ -481,8 +565,7 @@
 
     if (change.external_parties === "Ja" && change.personal_data === "Ja") score = Math.max(score, 3);
     if (HIGH_CHANGE_TYPES.has(changeType)) score = Math.max(score, 3);
-    if (changeType === "Neues System" && change.personal_data === "Ja") score = Math.max(score, 3);
-    if (["Software-Update mit Datenbezug", "API entfernt", "System wird abgeschaltet"].includes(changeType)) score = Math.max(score, 2);
+    if (MEDIUM_CHANGE_TYPES.has(changeType)) score = Math.max(score, 2);
     if (change.customers_affected === "Ja" && customerCount > 10) score = Math.max(score, 3);
 
     const gdprFields = [change.security_change, change.personal_data, change.customers_affected, change.external_parties];
@@ -878,12 +961,13 @@
   }
 
   function exportJson() {
+    const activeTom = getTomForDisplay();
     const backup = {
       exported_at: new Date().toISOString(),
       changes: history,
       change_history: history,
       document_library: [],
-      tom: currentTom,
+      tom: activeTom,
       customer_avvs: customerAvvs,
       versions: history.map((entry) => ({ change_id: entry.change_id, saved_at: entry.saved_at, impact_level: entry.impact_level })),
       change_suggestions: history.map((entry) => ({ change_id: entry.change_id, measures: entry.measures || [] })),
@@ -910,12 +994,11 @@
   function clearLocalData() {
     if (!confirm("Lokale Änderungshistorie wirklich löschen? Exportiere die Daten vorher, wenn du sie behalten möchtest.")) return;
     history = [];
-    currentTom = null;
     customerAvvs = [];
     selectedCustomerAvvId = "";
     if (isLocalStorageAvailable()) {
       localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(TOM_STORAGE_KEY);
+      localStorage.removeItem(EDITED_TOM_STORAGE_KEY);
       localStorage.removeItem(CUSTOMER_AVVS_STORAGE_KEY);
     }
     renderHistory();
@@ -930,6 +1013,7 @@
     populateSelect("personal_data", YES_NO_UNKNOWN, "Nein");
     populateSelect("customers_affected", YES_NO_UNKNOWN, "Nein");
     populateSelect("external_parties", YES_NO_UNKNOWN, "Nein");
+    syncAllSegments();
     $("change_id").value = nextChangeId();
     $("date").value = formatDateForDisplay(new Date().toISOString().slice(0, 10));
     $("source").value = "Manuelle Eingabe";
@@ -983,22 +1067,97 @@
     $("source").value = "Manuell eingefügte E-Mail";
     if (!$("description").value.trim()) $("description").value = parsed.body || originalText;
     if (!$("change_id").value.trim()) $("change_id").value = `EMAIL-${Date.now()}`;
-    if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
-    const combined = `${parsed.subject} ${parsed.body}`.toLowerCase();
-    const newSubprocessor = mentionsNewSubprocessor(combined);
-    const newProvider = mentionsNewProvider(combined);
-    const securityChange = containsSecurityHint(combined);
-    if (newSubprocessor) $("change_type").value = "Neuer Subunternehmer";
-    else if (newProvider) $("change_type").value = "Neuer Dienstleister";
-    else if (securityChange) $("change_type").value = "Verschlüsselung geändert";
-    if (securityChange) $("security_change").value = "Ja";
-    if (mentionsPersonalDataContext(combined)) {
-      $("personal_data").value = "Ja";
-      $("customers_affected").value = "Ja";
+    const emailBody = parsed.body || originalText;
+    const systems = extractAffectedSystems(emailBody);
+    if (systems) $("affected_systems").value = systems;
+    else if (!$("affected_systems").value.trim()) $("affected_systems").value = "Aus E-Mail zu prüfen";
+    const fields = classifyEmailFields(parsed.subject, emailBody);
+    if (fields.change_type) $("change_type").value = fields.change_type;
+    ["security_change", "personal_data", "customers_affected", "external_parties"].forEach((field) => {
+      if (fields[field]) $(field).value = fields[field];
+    });
+    syncAllSegments();
+    appendNoteOnce("E-Mail-Inhalt wurde automatisch vorbelegt; bitte vor dem Speichern prüfen.");
+  }
+
+  // Leitet die Ja/Nein-Felder und den Änderungstyp aus dem E-Mail-Text ab.
+  // Berücksichtigt Verneinungen ("keine ...", "bleiben unverändert"), damit z.B.
+  // "Sicherheitsmaßnahmen bleiben unverändert" NICHT als Sicherheitsänderung gilt.
+  function classifyEmailFields(subject, body) {
+    const text = `${subject || ""} ${body || ""}`.toLowerCase();
+    const fields = {};
+
+    // Personenbezogene Daten
+    if (/\b(kein|keine|keinen)\b[^.]*personenbezogen/.test(text) || /\bohne\b[^.]*personenbezug/.test(text)) {
+      fields.personal_data = "Nein";
+    } else if (/personenbezogen\w*\s+daten/.test(text) || /\bkundendaten\b/.test(text) || /\bpersonenbezug\b/.test(text)) {
+      fields.personal_data = "Ja";
     }
-    if (newProvider || newSubprocessor) $("external_parties").value = "Ja";
-    else if (hasExternalNegation(combined)) $("external_parties").value = "Nein";
-    appendNoteOnce("E-Mail-Inhalt wurde manuell übernommen; vor dem Speichern prüfen.");
+
+    // Kunden betroffen
+    if (/\b(kein|keine|keinen)\b[^.]*\bkunden/.test(text)) {
+      fields.customers_affected = "Nein";
+    } else if (/\bkunden(daten)?\b[^.]*betroffen/.test(text) || /betrifft[^.]*\bkunden/.test(text)) {
+      fields.customers_affected = "Ja";
+    }
+
+    // Externe Beteiligte
+    if (mentionsNewProvider(text) || mentionsNewSubprocessor(text)) {
+      fields.external_parties = "Ja";
+    } else if (/\b(kein|keine|keinen)\b[^.]*(extern\w*|dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider|freelancer)/.test(text) || hasExternalNegation(text)) {
+      fields.external_parties = "Nein";
+    } else if (/\bfreelancer\b/.test(text) || /extern\w*\s+(dienstleister|beteiligt\w*|partner|zugriff\w*)/.test(text)) {
+      fields.external_parties = "Ja";
+    }
+
+    // Sicherheitsänderung – Verneinung schlägt Schlüsselwort
+    const securityUnchanged =
+      /(zugriff\w*|berechtigung\w*|rollen|rechte|sicherheitsmaßnahme\w*|verschlüsselung|firewall|backup)[^.]*\b(bleiben|bleibt|sind|ist)\s+unverändert/.test(text) ||
+      /\b(kein|keine|keinen)\b[^.]*änderung\w*[^.]*(sicherheit|zugriff|berechtigung|rollen|rechte|verschlüsselung|firewall|backup)/.test(text) ||
+      /(sicherheit\w*|zugriff\w*|berechtigung\w*|verschlüsselung|firewall|backup)[^.]*(nicht\s+(geändert|verändert)|unverändert)/.test(text);
+    if (securityUnchanged) {
+      fields.security_change = "Nein";
+    } else if (containsSecurityHint(text)) {
+      fields.security_change = "Ja";
+    }
+
+    // Änderungstyp nach Regelwerk
+    const isUpdate = /\b(update\w*|aktualisier\w+|patch\w*|bugfix\w*|fehlerbehebung|release\w*|upgrade\w*|hotfix\w*)\b/.test(text) || /\bversion\s*[\d.]/.test(text);
+    if (mentionsNewSubprocessor(text)) {
+      fields.change_type = "Neuer Subunternehmer";
+    } else if (mentionsNewProvider(text)) {
+      fields.change_type = "Neuer Dienstleister";
+    } else if (isUpdate) {
+      fields.change_type = fields.personal_data === "Ja" ? "Software-Update mit Datenbezug" : "Software-Update ohne Datenbezug";
+    } else if (fields.security_change === "Ja") {
+      if (/verschlüsselung/.test(text)) fields.change_type = "Verschlüsselung geändert";
+      else if (/firewall|netzwerk|hosting|\bserver\b/.test(text)) fields.change_type = "Infrastrukturänderung";
+      else if (/backup/.test(text)) fields.change_type = "Backup geändert";
+      else if (/rollen|rechte|berechtigung/.test(text)) fields.change_type = "Rechte-/Rollenkonzept geändert";
+    }
+
+    return fields;
+  }
+
+  // Best-effort-Extraktion betroffener Systeme aus dem Klartext der E-Mail:
+  // erkennt großgeschriebene Komposita auf typische IT-Endungen (Server, Software, ...).
+  function extractAffectedSystems(body) {
+    if (!body) return "";
+    const matches = body.match(
+      /\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]*(?:server|software|system(?:e)?|anwendung(?:en)?|datenbank(?:en)?|cloud|api|schnittstelle(?:n)?|dienst(?:e)?|plattform(?:en)?|tool(?:s)?|hosting|portal(?:e)?|modul(?:e)?)(?:e|en|n|s)?\b/g
+    );
+    if (!matches) return "";
+    const seen = new Set();
+    const out = [];
+    for (const raw of matches) {
+      const cleaned = raw.replace(/ern$/, "er");
+      const key = cleaned.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(cleaned);
+      }
+    }
+    return out.join(", ");
   }
 
   function extractDisplayDate(value) {
@@ -1007,6 +1166,8 @@
     return match ? match[1] : "";
   }
 
+  // Stichwort-Erkennung für TOM-/Sicherheitsbezug. Wird in classifyEmailFields
+  // nur ausgewertet, wenn keine Verneinung ("... bleiben unverändert") greift.
   function containsSecurityHint(text) {
     return /\b(tom|verschlüsselung|aes[-\s]?\d+|tls|key-management|kryptografische schlüssel|backup-verschlüsselung|zugriff|rollen|rechte|protokollierung|backup|wiederherstellung|mfa|login|sicherheitsmaßnahmen|technisch-organisatorische maßnahmen)\b/i.test(text);
   }
@@ -1028,9 +1189,6 @@
       /(dienstleister|subunternehmer|unterauftragnehmer|anbieter|provider).{0,80}(ändert sich nicht|ändern sich nicht|nicht geändert|nicht verändert|bleibt unverändert|bleiben unverändert|keine änderung)/i.test(text);
   }
 
-  function mentionsPersonalDataContext(text) {
-    return /\b(kundendaten|kunden-avv|personenbezogen|personenbezogene daten|tom|technisch-organisatorische maßnahmen)\b/i.test(text);
-  }
 
   function appendNoteOnce(note) {
     const current = $("notes").value.trim();
@@ -1040,129 +1198,6 @@
 
 
   const CUSTOMER_AVV_COLUMNS = ["customer_avv_id","customer_id","customer_name","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","source_file","file_hash","last_review","review_status","notes"];
-
-  function normalizeCustomerAvv(row, index) {
-    const customerName = String(row.customer_name || "").trim();
-    if (!customerName) throw new Error(`Zeile ${index + 2}: Kunde fehlt.`);
-    return {
-      customer_avv_id: String(row.customer_avv_id || `CAVV-${Date.now()}-${index + 1}`).trim(),
-      customer_id: String(row.customer_id || "").trim(),
-      customer_name: customerName,
-      avv_title: String(row.avv_title || `AVV ${customerName}`).trim(),
-      avv_version: String(row.avv_version || "").trim(),
-      contract_date: normalizeDateInput(row.contract_date),
-      status: String(row.status || "Aktiv").trim(),
-      affected_systems: String(row.affected_systems || "").trim(),
-      data_categories: String(row.data_categories || "").trim(),
-      processor_name: String(row.processor_name || "").trim(),
-      source_file: String(row.source_file || "").trim(),
-      file_hash: String(row.file_hash || "").trim(),
-      file_size: Number(row.file_size || 0) || 0,
-      file_type: String(row.file_type || "").trim(),
-      last_review: normalizeDateInput(row.last_review),
-      review_status: String(row.review_status || "OK").trim(),
-      notes: String(row.notes || "").trim(),
-      avv_text: String(row.avv_text || "").trim(),
-    };
-  }
-
-  function importCustomerAvvCsvFile(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const errors = [];
-      const imported = [];
-      parseCsv(String(reader.result || "")).forEach((row, index) => {
-        try { imported.push(normalizeCustomerAvv(row, index)); } catch (error) { errors.push(error.message); }
-      });
-      imported.forEach((entry) => {
-        const existing = customerAvvs.findIndex((item) => item.customer_avv_id === entry.customer_avv_id);
-        if (existing >= 0) customerAvvs[existing] = { ...customerAvvs[existing], ...entry };
-        else customerAvvs.push(entry);
-      });
-      persistCustomerAvvs();
-      renderCustomerAvvs();
-      showMessage("customerAvvMessage", `${imported.length} Kunden-AVV-Datensätze importiert.${errors.length ? " Fehler: " + errors.map(escapeHtml).join(" | ") : ""}`, errors.length ? "danger" : "warning");
-      event.target.value = "";
-    };
-    reader.onerror = () => showMessage("customerAvvMessage", "Kunden-AVV-CSV konnte nicht gelesen werden.", "danger");
-    reader.readAsText(file, "utf-8");
-  }
-
-  function renderCustomerAvvs() {
-    const query = ($("customerAvvSearch").value || "").toLowerCase();
-    const status = $("customerAvvStatusFilter").value;
-    const filtered = customerAvvs.filter((item) => (!status || item.status === status) && Object.values(item).join(" ").toLowerCase().includes(query));
-    $("avvCountTotal").textContent = customerAvvs.length;
-    $("avvCountOpen").textContent = customerAvvs.filter((item) => item.status === "Prüfung offen").length;
-    $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
-    $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
-    const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
-    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(fieldLabel(c))}</th>`).join("")}</tr>`;
-    document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
-    document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
-    renderCustomerAvvDetail();
-  }
-
-  function formatCustomerAvvCell(column, value) {
-    if (DATE_FIELDS.has(column)) return escapeHtml(formatDateForDisplay(value));
-    if (column === "status" || column === "review_status") return `<span class="status-badge ${statusClass(value)}">${escapeHtml(value || "")}</span>`;
-    return escapeHtml(value || "");
-  }
-
-  function statusClass(value) {
-    const text = String(value || "").toLowerCase();
-    if (text.includes("aktiv") || text === "ok") return "status-active";
-    if (text.includes("high") || text.includes("aktualisierung")) return "status-high";
-    if (text.includes("prüf") || text.includes("tom")) return "status-open";
-    return "";
-  }
-
-  function selectCustomerAvv(id) { selectedCustomerAvvId = id; renderCustomerAvvDetail(); }
-
-  function renderCustomerAvvDetail() {
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
-    $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(fieldLabel(column))}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Zur Prüfung markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
-    $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
-    $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
-  }
-
-  async function importCustomerAvvPdf(event) {
-    const file = event.target.files[0];
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!file || !item) { showMessage("customerAvvMessage", "Bitte zuerst einen Kunden-AVV-Datensatz auswählen und dann die PDF importieren.", "danger"); return; }
-    item.source_file = file.name;
-    item.file_type = file.type || "application/pdf";
-    item.file_size = file.size;
-    item.file_hash = await calculateSha256(file);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    showMessage("customerAvvMessage", "AVV-PDF wurde lokal registriert. Metadaten und Hash wurden gespeichert.", "warning");
-    event.target.value = "";
-  }
-
-  function exportCustomerAvvsCsv() { downloadFile("kunden_avvs_export.csv", toCsv(customerAvvs, CUSTOMER_AVV_COLUMNS), "text/csv;charset=utf-8"); }
-
-  function renderAffectedReviewBox(result) {
-    const affected = Array.isArray(result.affected_documents) ? result.affected_documents : [];
-    const parts = [];
-    if (affected.includes("AVV")) {
-      const relevant = customerAvvs.filter((item) => ["Aktiv", "Prüfung offen"].includes(item.status));
-      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs zur Prüfung markieren</button></div>`);
-    }
-    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM zur Prüfung markieren</button></div>`);
-    return parts.length ? `<div class="review-actions">${parts.join("")}</div>` : "";
-  }
-
-  function markRelevantCustomerAvvs(highImpact) {
-    customerAvvs = customerAvvs.map((item) => ["Aktiv", "Prüfung offen"].includes(item.status) ? { ...item, status: "Prüfung offen", review_status: highImpact ? "High Impact prüfen" : "Prüfen" } : item);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden zur Prüfung markiert.");
-  }
 
   async function loadWebScanResults() {
     hideMessage("webScanMessage");
@@ -1203,24 +1238,6 @@
       </article>
     `).join("");
   }
-
-  async function calculateSha256(file) {
-    if (!crypto || !crypto.subtle) return "SHA-256 im aktuellen Browser nicht verfügbar";
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", buffer);
-    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  }
-
-  function setPdfPreview(file, frameId, fallbackId, type) {
-    if (type === "tom" && tomPreviewUrl) URL.revokeObjectURL(tomPreviewUrl);
-    if (type === "avv" && avvPreviewUrl) URL.revokeObjectURL(avvPreviewUrl);
-    const url = URL.createObjectURL(file);
-    if (type === "tom") tomPreviewUrl = url; else avvPreviewUrl = url;
-    $(frameId).src = url;
-    $(frameId).classList.remove("hidden");
-    $(fallbackId).classList.add("hidden");
-  }
-
 
   const STATIC_SAMPLE_TOM = {
     tom_id: "TOM-001",
@@ -1457,19 +1474,6 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
   }
 
 
-  function persistTom() {
-    return;
-  }
-
-  function loadCustomerAvvs() {
-    if (!isLocalStorageAvailable()) return [];
-    try { return JSON.parse(localStorage.getItem(CUSTOMER_AVVS_STORAGE_KEY) || "[]"); } catch { return []; }
-  }
-
-  function persistCustomerAvvs() {
-    if (isLocalStorageAvailable()) localStorage.setItem(CUSTOMER_AVVS_STORAGE_KEY, JSON.stringify(customerAvvs));
-  }
-
   function renderTom() {
     renderStaticTom();
   }
@@ -1498,150 +1502,6 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
     return;
   }
 
-
-  function normalizeCustomerAvv(row, index) {
-    const customerName = String(row.customer_name || "").trim();
-    if (!customerName) throw new Error(`Zeile ${index + 2}: customer_name fehlt.`);
-    return {
-      customer_avv_id: String(row.customer_avv_id || `CAVV-${Date.now()}-${index + 1}`).trim(),
-      customer_id: String(row.customer_id || "").trim(),
-      customer_name: customerName,
-      avv_title: String(row.avv_title || `AVV ${customerName}`).trim(),
-      avv_version: String(row.avv_version || "").trim(),
-      contract_date: String(row.contract_date || "").trim(),
-      status: String(row.status || "Aktiv").trim(),
-      affected_systems: String(row.affected_systems || "").trim(),
-      data_categories: String(row.data_categories || "").trim(),
-      processor_name: String(row.processor_name || "").trim(),
-      source_file: String(row.source_file || "").trim(),
-      file_hash: String(row.file_hash || "").trim(),
-      file_size: Number(row.file_size || 0) || 0,
-      file_type: String(row.file_type || "").trim(),
-      last_review: String(row.last_review || "").trim(),
-      review_status: String(row.review_status || "OK").trim(),
-      notes: String(row.notes || "").trim(),
-      avv_text: String(row.avv_text || "").trim(),
-    };
-  }
-
-  function importCustomerAvvCsvFile(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const errors = [];
-      const imported = [];
-      parseCsv(String(reader.result || "")).forEach((row, index) => {
-        try { imported.push(normalizeCustomerAvv(row, index)); } catch (error) { errors.push(error.message); }
-      });
-      imported.forEach((entry) => {
-        const existing = customerAvvs.findIndex((item) => item.customer_avv_id === entry.customer_avv_id);
-        if (existing >= 0) customerAvvs[existing] = { ...customerAvvs[existing], ...entry };
-        else customerAvvs.push(entry);
-      });
-      persistCustomerAvvs();
-      renderCustomerAvvs();
-      showMessage("customerAvvMessage", `${imported.length} Kunden-AVV-Datensätze importiert.${errors.length ? " Fehler: " + errors.map(escapeHtml).join(" | ") : ""}`, errors.length ? "danger" : "warning");
-      event.target.value = "";
-    };
-    reader.onerror = () => showMessage("customerAvvMessage", "Kunden-AVV-CSV konnte nicht gelesen werden.", "danger");
-    reader.readAsText(file, "utf-8");
-  }
-
-  function renderCustomerAvvs() {
-    const query = ($("customerAvvSearch").value || "").toLowerCase();
-    const status = $("customerAvvStatusFilter").value;
-    const filtered = customerAvvs.filter((item) => (!status || item.status === status) && Object.values(item).join(" ").toLowerCase().includes(query));
-    $("avvCountTotal").textContent = customerAvvs.length;
-    $("avvCountOpen").textContent = customerAvvs.filter((item) => item.status === "Prüfung offen").length;
-    $("avvCountUpdate").textContent = customerAvvs.filter((item) => item.status === "Aktualisierung nötig").length;
-    $("avvCountActive").textContent = customerAvvs.filter((item) => item.status === "Aktiv").length;
-    const columns = ["customer_name","customer_id","avv_title","avv_version","contract_date","status","affected_systems","data_categories","processor_name","last_review","source_file","file_hash","action"];
-    document.querySelector("#customerAvvTable thead").innerHTML = `<tr>${columns.map((c) => `<th>${escapeHtml(fieldLabel(c))}</th>`).join("")}</tr>`;
-    document.querySelector("#customerAvvTable tbody").innerHTML = filtered.length ? filtered.map((item) => `<tr>${columns.map((column) => `<td>${column === "action" ? `<button class="secondary avv-select" type="button" data-id="${escapeHtml(item.customer_avv_id)}">Auswählen</button>` : formatCustomerAvvCell(column, item[column])}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${columns.length}">Keine Kunden-AVVs vorhanden.</td></tr>`;
-    document.querySelectorAll(".avv-select").forEach((button) => button.addEventListener("click", () => selectCustomerAvv(button.dataset.id)));
-    renderCustomerAvvDetail();
-  }
-
-  function formatCustomerAvvCell(column, value) {
-    if (column === "status" || column === "review_status") return `<span class="status-badge ${statusClass(value)}">${escapeHtml(value || "")}</span>`;
-    return escapeHtml(value || "");
-  }
-
-  function statusClass(value) {
-    const text = String(value || "").toLowerCase();
-    if (text.includes("aktiv") || text === "ok") return "status-active";
-    if (text.includes("high") || text.includes("aktualisierung")) return "status-high";
-    if (text.includes("prüf") || text.includes("tom")) return "status-open";
-    return "";
-  }
-
-  function selectCustomerAvv(id) { selectedCustomerAvvId = id; renderCustomerAvvDetail(); }
-
-  function renderCustomerAvvDetail() {
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!item) { $("customerAvvDetail").className = "empty-state"; $("customerAvvDetail").textContent = "Noch kein Kunden-AVV ausgewählt."; return; }
-    $("customerAvvDetail").className = "";
-    $("customerAvvDetail").innerHTML = `<div class="detail-grid">${CUSTOMER_AVV_COLUMNS.map((column) => `<div><strong>${escapeHtml(fieldLabel(column))}</strong>${escapeHtml(formatDisplayValue(column, item[column]))}</div>`).join("")}</div><label>AVV-Text aus PDF hier einfügen<textarea id="selectedAvvText" rows="5">${escapeHtml(item.avv_text || "")}</textarea></label><div class="button-row"><button id="saveSelectedAvvTextBtn" type="button">AVV-Text speichern</button><button id="markSelectedAvvReviewBtn" class="secondary" type="button">Als prüfpflichtig markieren</button></div><div id="avvPdfPreviewBox" class="empty-state">PDF-Vorschau ist nur direkt nach dem Import verfügbar.</div>`;
-    $("saveSelectedAvvTextBtn").addEventListener("click", () => { item.avv_text = $("selectedAvvText").value.trim(); persistCustomerAvvs(); renderCustomerAvvDetail(); });
-    $("markSelectedAvvReviewBtn").addEventListener("click", () => { item.status = "Prüfung offen"; item.review_status = "Prüfen"; persistCustomerAvvs(); renderCustomerAvvs(); });
-  }
-
-  async function importCustomerAvvPdf(event) {
-    const file = event.target.files[0];
-    const item = customerAvvs.find((entry) => entry.customer_avv_id === selectedCustomerAvvId);
-    if (!file || !item) { showMessage("customerAvvMessage", "Bitte zuerst einen Kunden-AVV-Datensatz auswählen und dann die PDF importieren.", "danger"); return; }
-    item.source_file = file.name;
-    item.file_type = file.type || "application/pdf";
-    item.file_size = file.size;
-    item.file_hash = await calculateSha256(file);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    showMessage("customerAvvMessage", "AVV-PDF wurde lokal registriert. Metadaten und Hash wurden gespeichert.", "warning");
-    event.target.value = "";
-  }
-
-  function exportCustomerAvvsCsv() { downloadFile("kunden_avvs_export.csv", toCsv(customerAvvs, CUSTOMER_AVV_COLUMNS), "text/csv;charset=utf-8"); }
-
-  function renderAffectedReviewBox(result) {
-    const affected = Array.isArray(result.affected_documents) ? result.affected_documents : [];
-    const parts = [];
-    if (affected.includes("AVV")) {
-      const relevant = customerAvvs.filter((item) => ["Aktiv", "Prüfung offen"].includes(item.status));
-      parts.push(`<div><strong>Betroffene Kunden-AVVs prüfen</strong>${renderChipList(relevant.map((item) => `${item.customer_name} (${item.status})`))}<button id="markCustomerAvvsReviewBtn" class="secondary" type="button">Kunden-AVVs als prüfpflichtig markieren</button></div>`);
-    }
-    if (affected.includes("TOM")) parts.push(`<div><strong>Aktuelle TOM prüfen</strong><button id="markTomReviewFromResultBtn" class="secondary" type="button">TOM als prüfpflichtig markieren</button></div>`);
-    return parts.length ? `<div class="review-actions">${parts.join("")}</div>` : "";
-  }
-
-  function markRelevantCustomerAvvs(highImpact) {
-    customerAvvs = customerAvvs.map((item) => ["Aktiv", "Prüfung offen"].includes(item.status) ? { ...item, status: "Prüfung offen", review_status: highImpact ? "High Impact prüfen" : "Prüfen" } : item);
-    persistCustomerAvvs();
-    renderCustomerAvvs();
-    renderResult(lastEvaluation || { affected_documents: [], warnings: [] }, "Kunden-AVVs wurden als prüfpflichtig markiert.");
-  }
-
-  async function calculateSha256(file) {
-    if (typeof crypto === "undefined" || !crypto.subtle) return "SHA-256 im aktuellen Browser nicht verfügbar";
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", buffer);
-    return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-  }
-
-  function setPdfPreview(file, frameId, fallbackId, type) {
-    if (type === "tom" && tomPreviewUrl) URL.revokeObjectURL(tomPreviewUrl);
-    if (type === "avv" && avvPreviewUrl) URL.revokeObjectURL(avvPreviewUrl);
-    const url = URL.createObjectURL(file);
-    if (type === "tom") tomPreviewUrl = url; else avvPreviewUrl = url;
-    $(frameId).src = url;
-    $(frameId).classList.remove("hidden");
-    $(fallbackId).classList.add("hidden");
-  }
-
-
-  function persistTom() {
-    return;
-  }
 
   function loadCustomerAvvs() {
     if (!isLocalStorageAvailable()) return [];
@@ -1931,5 +1791,22 @@ V5: Beispiel-TOM für lokale Anzeige und spätere Bearbeitung.`,
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  // Reine Regel-Logik für automatisierte Tests unter Node exportieren.
+  // Im Browser existiert kein `module`, daher der Guard – die App bleibt unberührt.
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      evaluateChange,
+      isAvvAffected,
+      isTomAffected,
+      normalizeChange,
+      validateChange,
+      classifyEmailFields,
+      extractAffectedSystems,
+      KNOWN_CHANGE_TYPES,
+      HIGH_CHANGE_TYPES,
+      MEDIUM_CHANGE_TYPES,
+    };
   }
 })();

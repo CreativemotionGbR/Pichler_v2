@@ -97,6 +97,50 @@ h2 { font-size: 1.25rem; }
   margin-bottom: 1rem;
 }
 
+/* Aufklappbare Hauptbereiche via native <details>/<summary>. */
+details.collapsible {
+  margin: 0;
+}
+
+details.collapsible > summary.section-heading {
+  cursor: pointer;
+  list-style: none;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  transition: background 0.12s;
+}
+
+details.collapsible > summary.section-heading:hover {
+  background: #f5f8fc;
+}
+
+details.collapsible > summary.section-heading::-webkit-details-marker {
+  display: none;
+}
+
+/* Titelblock nimmt den Platz ein und drückt die Buttons nach rechts. */
+details.collapsible > summary.section-heading > div:first-child {
+  flex: 1 1 auto;
+}
+
+/* Dreieck-Indikator, dreht sich beim Aufklappen. */
+details.collapsible > summary.section-heading::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-top: 0.5rem;
+  border-right: 2.5px solid var(--primary);
+  border-bottom: 2.5px solid var(--primary);
+  transform: rotate(-45deg);
+  transition: transform 0.18s ease;
+}
+
+details.collapsible[open] > summary.section-heading::before {
+  transform: rotate(45deg);
+}
+
 .section-heading p {
   margin: 0.25rem 0 0;
   color: var(--muted);
@@ -114,10 +158,11 @@ h2 { font-size: 1.25rem; }
 
 label {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin-bottom: 1rem;
-  font-weight: 700;
-  color: #293850;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 input, select, textarea {
@@ -564,4 +609,168 @@ footer {
   padding: 1rem;
   border: 1px solid var(--border, #cfd8e3);
   border-radius: 12px;
+}
+
+/* ===================================================================== */
+/* Modernisierung: Formular-Gruppen, Segment-Buttons, Sticky-Ergebnis,   */
+/* Dark Mode.                                                            */
+/* ===================================================================== */
+
+/* --- Formular-Gruppen --- */
+.form-group + .form-group {
+  margin-top: 1.5rem;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.form-group-title {
+  margin: 0 0 1rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+/* --- Segment-Buttons für Ja / Nein / Unklar --- */
+.segmented {
+  display: flex;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #eef2f8;
+}
+
+.segmented .segment {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.55rem 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+}
+
+.segmented .segment:hover {
+  transform: none;
+  background: rgba(36, 84, 214, 0.10);
+  color: var(--text);
+}
+
+.segmented .segment.is-active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(36, 84, 214, 0.28);
+}
+
+.segmented .segment:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* --- Sticky Ergebnis-Panel (nur auf breiten Screens) --- */
+@media (min-width: 1051px) {
+  .result-panel {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+  }
+}
+
+/* --- Bewegungsreduktion respektieren --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* --- Dark Mode --- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d141f;
+    --panel: #161f2e;
+    --text: #e7edf6;
+    --muted: #9fb1c9;
+    --border: #2b3a4f;
+    --primary: #6a97ff;
+    --primary-dark: #4d79e6;
+    --success: #2fae74;
+    --danger: #e56060;
+    --warning: #d69a3a;
+    --low: #12321f;
+    --low-text: #7ee0a6;
+    --medium: #33280f;
+    --medium-text: #ffcf6b;
+    --high: #3a1717;
+    --high-text: #ff9a9a;
+    --shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+  }
+
+  body {
+    background: linear-gradient(135deg, #0b111a 0%, var(--bg) 100%);
+  }
+
+  input, select, textarea,
+  .segmented,
+  .tom-edit-textarea {
+    background: #0f1a2a;
+    color: var(--text);
+  }
+
+  .empty-state,
+  .email-box,
+  .card-block,
+  .detail-panel,
+  .detail-grid div,
+  .scan-result,
+  .pdf-preview,
+  .summary-card,
+  .tom-full-text-preview,
+  .tom-section-card {
+    background: #101a29;
+  }
+
+  th {
+    background: #0f1826;
+    color: var(--muted);
+  }
+
+  .app-nav a {
+    background: var(--panel);
+  }
+
+  .chip-list li,
+  .status-badge {
+    background: #1b2740;
+    color: #c3d3ec;
+  }
+
+  .sticky-actions {
+    background: rgba(22, 31, 46, 0.92);
+  }
+
+  details.collapsible > summary.section-heading:hover {
+    background: #1a2437;
+  }
+
+  .segmented .segment:hover {
+    background: rgba(106, 151, 255, 0.16);
+  }
+
+  .alert.danger { border-color: #5a2626; }
+  .alert.warning { border-color: #5a4718; }
+  .warning-card { border-color: #5a4718; }
+  .danger-card { border-color: #5a2626; }
+  .success-card { border-color: #1f5638; }
 }
