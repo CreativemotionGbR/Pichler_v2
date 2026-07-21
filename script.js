@@ -1300,14 +1300,15 @@
     // Personenbezogene Daten
     if (/\b(kein|keine|keinen)\b[^.]*personenbezogen/.test(text) || /\bohne\b[^.]*personenbezug/.test(text)) {
       fields.personal_data = "Nein";
-    } else if (/personenbezogen\w*\s+daten/.test(text) || /\bkundendaten\b/.test(text) || /\bpersonenbezug\b/.test(text)) {
+    } else if (/personenbezogen/.test(text) || /\bkundendaten\b/.test(text) || /\bpersonenbezug\b/.test(text) || /kunden-\s*und\s*kontaktdaten/.test(text)) {
       fields.personal_data = "Ja";
     }
 
-    // Kunden betroffen
+    // Kunden betroffen (auch, wenn Kundendaten verarbeitet werden)
     if (/\b(kein|keine|keinen)\b[^.]*\bkunden/.test(text)) {
       fields.customers_affected = "Nein";
-    } else if (/\bkunden(daten)?\b[^.]*betroffen/.test(text) || /betrifft[^.]*\bkunden/.test(text)) {
+    } else if (/\bkunden(daten|portal|konto|kontakt)/.test(text) || /kunden-\s*und/.test(text) ||
+      /\bkunden\b[^.]*betroffen/.test(text) || /betrifft[^.]*\bkunden/.test(text)) {
       fields.customers_affected = "Ja";
     }
 
@@ -1331,12 +1332,20 @@
       fields.security_change = "Ja";
     }
 
-    // Änderungstyp nach Regelwerk
+    // Änderungstyp nach Regelwerk (spezifische Auslöser vor allgemeinen)
     const isUpdate = /\b(update\w*|aktualisier\w+|patch\w*|bugfix\w*|fehlerbehebung|release\w*|upgrade\w*|hotfix\w*)\b/.test(text) || /\bversion\s*[\d.]/.test(text);
     if (mentionsNewSubprocessor(text)) {
       fields.change_type = "Neuer Subunternehmer";
+    } else if (/\bfreelancer\b/.test(text) && /zugriff|zugang/.test(text)) {
+      fields.change_type = "Freelancer mit Zugriff";
     } else if (mentionsNewProvider(text)) {
       fields.change_type = "Neuer Dienstleister";
+    } else if (/unautorisiert\w*|unbefugt\w*|datenpanne|datenleck|sicherheitsvorfall|datenschutzvorfall|\bincident\b/.test(text)) {
+      fields.change_type = "Datenschutzvorfall / Sicherheitsereignis";
+    } else if (/\bapi\b|schnittstelle/.test(text)) {
+      fields.change_type = /entfernt|deaktivier\w*|\babgeschaltet\b|außer betrieb/.test(text) ? "API entfernt" : "API-Änderung";
+    } else if (/außer betrieb|abgeschaltet|stillgelegt|stilllegung|abschaltung/.test(text)) {
+      fields.change_type = "System wird abgeschaltet";
     } else if (isUpdate) {
       fields.change_type = fields.personal_data === "Ja" ? "Software-Update mit Datenbezug" : "Software-Update ohne Datenbezug";
     } else if (fields.security_change === "Ja") {
@@ -1398,7 +1407,7 @@
   // Stichwort-Erkennung für TOM-/Sicherheitsbezug. Wird in classifyEmailFields
   // nur ausgewertet, wenn keine Verneinung ("... bleiben unverändert") greift.
   function containsSecurityHint(text) {
-    return /\b(tom|verschlüsselung|aes[-\s]?\d+|tls|key-management|kryptografische schlüssel|backup-verschlüsselung|zugriff|rollen|rechte|protokollierung|backup|wiederherstellung|mfa|login|sicherheitsmaßnahmen|technisch-organisatorische maßnahmen)\b/i.test(text);
+    return /(\btom\b|verschlüssel|krypto|aes[-\s]?\d+|\btls\b|zugriffskontrolle|zugriffsrecht|rollen|rollenkonzept|berechtigung|protokollierung|firewall|backup|wiederherstellung|\bmfa\b|mehrfaktor|login|sicherheitsmaßnahme|technisch-organisatorische maßnahmen|technischen und organisatorischen maßnahmen|organisatorische maßnahmen)/i.test(text);
   }
 
   function mentionsNewSubprocessor(text) {
